@@ -183,18 +183,10 @@ class _AuthPageState extends State<AuthPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: cs.primary.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.bolt_rounded,
-                                size: 32,
-                                color: cs.primary,
-                              ),
+                            Image.asset(
+                              'assets/images/logo.png',
+                              width: 80,
+                              height: 80,
                             ),
                             const SizedBox(height: 24),
                             Text(

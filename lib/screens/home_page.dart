@@ -271,9 +271,9 @@ class _AppBar extends StatelessWidget {
         onPressed: () => Scaffold.of(context).openDrawer(),
       ),
       centerTitle: true,
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(Icons.bolt_rounded, color: cs.primary, size: 28)],
+      title: Image.asset(
+        'assets/images/logo.png',
+        height: 28,
       ),
       actions: [
         Center(
