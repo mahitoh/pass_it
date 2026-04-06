@@ -3,17 +3,21 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/app_state.dart';
-import 'admin_dashboard_page.dart';
-import 'competitive_exams_page.dart';
 import 'explore_page.dart';
+import 'home_page.dart';
 import 'leaderboard_page.dart';
-import 'level_papers_page.dart';
 import 'notifications_page.dart';
-import 'paper_detail_page.dart';
+import 'onboarding_page.dart';
 import 'paper_scanner_page.dart';
 import 'points_page.dart';
 import 'profile_page.dart';
+import 'paper_detail_page.dart';
 import 'upload_page.dart';
+import 'bookmarks_page.dart';
+import 'competitive_exams_page.dart';
+import 'admin_dashboard_page.dart';
+import 'level_papers_page.dart';
+import '../theme/app_theme.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -53,13 +57,14 @@ class _HomePageState extends State<HomePage> {
       body: _pages[_currentIndex == 2 ? 0 : _currentIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: cs.surface,
-          border: Border(
-            top: BorderSide(
-              color: cs.outlineVariant.withOpacity(0.2),
-              width: 1,
+          color: cs.surface.withOpacity(0.96),
+          boxShadow: [
+            BoxShadow(
+              color: cs.onSurface.withOpacity(0.04),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
             ),
-          ),
+          ],
         ),
         child: SafeArea(
           top: false,
@@ -210,6 +215,7 @@ class HomeContent extends StatelessWidget {
           greeting: _greeting,
           userName: appState.userName,
           points: appState.points,
+          streak: appState.streak,
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -252,16 +258,17 @@ class _AppBar extends StatelessWidget {
   final String greeting;
   final String userName;
   final int points;
+  final int streak;
   const _AppBar({
     required this.greeting,
     required this.userName,
     required this.points,
+    required this.streak,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final firstName = userName.split(' ').first;
     return SliverAppBar(
       pinned: true,
       backgroundColor: cs.surface.withOpacity(0.95),
@@ -271,17 +278,40 @@ class _AppBar extends StatelessWidget {
         onPressed: () => Scaffold.of(context).openDrawer(),
       ),
       centerTitle: true,
-      title: Image.asset(
-        'assets/images/logo.png',
-        height: 28,
-      ),
+      title: Image.asset('assets/images/logo.png', height: 28),
       actions: [
+        if (streak > 0)
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              margin: const EdgeInsets.only(right: 4),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.local_fire_department, size: 14, color: Colors.orange),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$streak',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         Center(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: cs.secondaryContainer.withOpacity(0.3),
+              color: cs.secondaryContainer.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
@@ -451,9 +481,9 @@ class _CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: data.bg,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -546,8 +576,8 @@ class _TrendingStrip extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: AppTheme.ambientShadow(),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,14 +672,7 @@ class _UploadBanner extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [cs.primaryContainer, cs.primary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: AppTheme.signatureGradientDecoration(radius: 16),
       child: Row(
         children: [
           Expanded(
@@ -1035,7 +1058,7 @@ class _TwitterLikeDrawer extends StatelessWidget {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  MaterialPageRoute(builder: (_) => const BookmarksPage()),
                 );
               },
             ),

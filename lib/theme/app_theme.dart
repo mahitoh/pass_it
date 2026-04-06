@@ -178,4 +178,39 @@ class AppTheme {
       ),
     );
   }
+
+  static List<BoxShadow> ambientShadow({double opacity = 0.04, double blur = 16}) {
+    return [
+      BoxShadow(
+        color: onSurface.withValues(alpha: opacity),
+        blurRadius: blur,
+        offset: const Offset(0, 4),
+      ),
+    ];
+  }
+
+  static BoxDecoration signatureGradientDecoration({double radius = 12}) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(radius),
+      gradient: const LinearGradient(
+        colors: [primary, primaryContainer],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: primary.withValues(alpha: 0.3),
+          blurRadius: 12,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    );
+  }
+
+  static Border ghostBorder({double opacity = 0.15}) {
+    return Border.all(
+      color: outlineVariant.withValues(alpha: opacity),
+      width: 1,
+    );
+  }
 }

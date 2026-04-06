@@ -10,14 +10,15 @@ class _Tier {
   final int max;
   final Color color;
   final IconData icon;
-  const _Tier(this.name, this.min, this.max, this.color, this.icon);
+  final String benefit;
+  const _Tier(this.name, this.min, this.max, this.color, this.icon, this.benefit);
 }
 
 const _tiers = [
-  _Tier('Bronze', 0, 99, Color(0xFF8C6A3F), Icons.workspace_premium_rounded),
-  _Tier('Silver', 100, 299, Color(0xFF6B7280), Icons.workspace_premium_rounded),
-  _Tier('Gold', 300, 599, Color(0xFFD4A017), Icons.workspace_premium_rounded),
-  _Tier('Platinum', 600, 9999, Color(0xFF4A90B8), Icons.diamond_rounded),
+  _Tier('Bronze', 0, 99, Color(0xFF8C6A3F), Icons.workspace_premium_rounded, 'Basic access to all papers'),
+  _Tier('Silver', 100, 299, Color(0xFF6B7280), Icons.workspace_premium_rounded, 'Early access to new uploads'),
+  _Tier('Gold', 300, 599, Color(0xFFD4A017), Icons.workspace_premium_rounded, 'Priority review + 1.5x points'),
+  _Tier('Platinum', 600, 9999, Color(0xFF4A90B8), Icons.diamond_rounded, 'Exclusive badges + 2x points'),
 ];
 
 _Tier _tierFor(int pts) =>
@@ -52,6 +53,8 @@ class PointsPage extends StatelessWidget {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 _TierRoadmap(currentPts: pts),
+                const SizedBox(height: 32),
+                _HowToEarnSection(),
                 const SizedBox(height: 32),
                 _LeaderboardSection(appState: appState),
                 const SizedBox(height: 32),
@@ -309,6 +312,15 @@ class _TierRoadmap extends StatelessWidget {
                                   color: cs.onSurfaceVariant,
                                 ),
                               ),
+                              const SizedBox(height: 2),
+                              Text(
+                                t.benefit,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: isAchieved ? cs.primary : cs.onSurfaceVariant,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -324,6 +336,126 @@ class _TierRoadmap extends StatelessWidget {
                             color: cs.onSurfaceVariant.withOpacity(0.4),
                             size: 18,
                           ),
+                      ],
+                    ),
+                  ),
+                  if (!isLast)
+                    Divider(
+                      height: 1,
+                      color: cs.outlineVariant.withOpacity(0.15),
+                      indent: 16,
+                      endIndent: 16,
+                    ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HowToEarnSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final items = [
+      {'icon': Icons.upload_file_rounded, 'title': 'Upload a Paper', 'points': '+50 pts', 'desc': 'Earn points when your paper is approved'},
+      {'icon': Icons.verified_rounded, 'title': 'Get Verified', 'points': '+20 pts', 'desc': 'Complete your profile with institution'},
+      {'icon': Icons.people_rounded, 'title': 'Refer a Friend', 'points': '+100 pts', 'desc': 'When they upload their first paper'},
+      {'icon': Icons.local_fire_department_rounded, 'title': 'Daily Login', 'points': '+5 pts', 'desc': 'Open the app every day'},
+      {'icon': Icons.star_rounded, 'title': 'Rate Papers', 'points': '+10 pts', 'desc': 'Help others by rating papers'},
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How to Earn Points',
+          style: GoogleFonts.manrope(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+          ),
+          child: Column(
+            children: items.asMap().entries.map((entry) {
+              final index = entry.key;
+              final item = entry.value;
+              final isLast = index == items.length - 1;
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: cs.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            item['icon'] as IconData,
+                            size: 20,
+                            color: cs.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    item['title'] as String,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: cs.onSurface,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      item['points'] as String,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                item['desc'] as String,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),

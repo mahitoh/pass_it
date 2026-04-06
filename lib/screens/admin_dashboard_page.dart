@@ -542,7 +542,6 @@ class _PaperCard extends StatelessWidget {
     ]);
     final fileSize = valOf(row, ['file_size_kb']);
     final fileType = valOf(row, ['file_type']);
-    final createdAt = valOf(row, ['created_at']);
 
     final hasLink = valOf(row, ['remote_url', 'file_url', 'url']).isNotEmpty;
 

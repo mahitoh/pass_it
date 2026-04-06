@@ -5,10 +5,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/app_state.dart';
 import 'admin_dashboard_page.dart';
 import 'paper_detail_page.dart';
+import '../theme/app_theme.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
   String _initials(String name) {
     final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return '?';
@@ -61,9 +67,7 @@ class ProfilePage extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerLowest,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: cs.outlineVariant.withOpacity(0.2),
-                    ),
+                    boxShadow: AppTheme.ambientShadow(),
                   ),
                   child: Column(
                     children: [
@@ -117,13 +121,7 @@ class ProfilePage extends StatelessWidget {
                                                 : cs.primary)
                                             .withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color:
-                                          (isAdmin
-                                                  ? const Color(0xFFD4A017)
-                                                  : cs.primary)
-                                              .withOpacity(0.3),
-                                    ),
+                                    border: AppTheme.ghostBorder(opacity: 0.1),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -159,11 +157,7 @@ class ProfilePage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      Divider(
-                        height: 1,
-                        color: cs.outlineVariant.withOpacity(0.2),
-                      ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -217,10 +211,8 @@ class ProfilePage extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: cs.outlineVariant.withOpacity(0.2),
-                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: AppTheme.ambientShadow(),
                   ),
                   child: Column(
                     children: [
@@ -298,7 +290,7 @@ class ProfilePage extends StatelessWidget {
           shrinkWrap: true,
           padding: const EdgeInsets.all(16),
           itemCount: bookmarked.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (ctx, i) {
             final p = bookmarked[i];
             return ListTile(
@@ -507,25 +499,39 @@ class ProfilePage extends StatelessWidget {
                     p.institution,
                     style: GoogleFonts.inter(fontSize: 12),
                   ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _statusColor(p.status).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      p.status.isEmpty
-                          ? 'Pending'
-                          : '${p.status[0].toUpperCase()}${p.status.substring(1)}',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: _statusColor(p.status),
-                        fontWeight: FontWeight.w600,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _statusColor(p.status).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          p.status.isEmpty
+                              ? 'Pending'
+                              : '${p.status[0].toUpperCase()}${p.status.substring(1)}',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: _statusColor(p.status),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Theme.of(context).colorScheme.error,
+                          size: 20,
+                        ),
+                        onPressed: () => _confirmDelete(context, appState, p.id, p.storagePath),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -533,6 +539,42 @@ class ProfilePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, AppState appState, String paperId, String? storagePath) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Paper'),
+        content: const Text('Are you sure you want to delete this paper? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      final success = await appState.deletePaper(paperId, storagePath);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Paper deleted successfully' : 'Failed to delete paper'),
+            backgroundColor: success ? null : Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 
   Color _statusColor(String status) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 
 import 'data/app_state.dart';
@@ -52,26 +53,15 @@ class _AuthGateState extends State<_AuthGate> {
   StreamSubscription<AuthState>? _authSubscription;
   bool _isHydrating = true;
   bool _authReady = false;
-  bool? _hasSeenOnboarding;
 
   @override
   void initState() {
     super.initState();
     _authReady = SupabaseBackend.instance.isReady;
-    _checkOnboardingAndInit();
+    _initAuthAndData();
   }
 
-  Future<void> _checkOnboardingAndInit() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
-    if (mounted) {
-      setState(() {
-        _hasSeenOnboarding = hasSeenOnboarding;
-      });
-    } else {
-      _hasSeenOnboarding = hasSeenOnboarding;
-    }
-
+  Future<void> _initAuthAndData() async {
     if (_authReady) {
       _session = Supabase.instance.client.auth.currentSession;
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange
@@ -81,9 +71,7 @@ class _AuthGateState extends State<_AuthGate> {
                 nextSession?.accessToken != _session?.accessToken;
             _session = nextSession;
 
-            if (!mounted) {
-              return;
-            }
+            if (!mounted) return;
 
             if (didSessionChange) {
               _hydrateForSession();
@@ -110,6 +98,8 @@ class _AuthGateState extends State<_AuthGate> {
 
     if (_session == null) {
       AppState.instance.clearForSignedOut();
+      // Ensure onboarding is loaded even if logged out
+      await AppState.instance.refreshData();
       if (mounted) {
         setState(() => _isHydrating = false);
       }
@@ -119,9 +109,77 @@ class _AuthGateState extends State<_AuthGate> {
     await AppState.instance
         .hydrateFromSupabase(SupabaseBackend.instance)
         .timeout(const Duration(seconds: 12), onTimeout: () {});
+
     if (mounted) {
+      AppState.instance.onTierUp = (newTier) {
+        _showTierUpDialog(context, newTier);
+      };
       setState(() => _isHydrating = false);
     }
+  }
+
+  void _showTierUpDialog(BuildContext context, String newTier) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.celebration_rounded, size: 48, color: Colors.amber),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '🎉 Tier Up!',
+              style: GoogleFonts.manrope(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You\'ve reached $newTier tier!',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Keep uploading to unlock more rewards!',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Awesome!'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -132,19 +190,33 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_hasSeenOnboarding == false) {
+    final state = AppStateScope.of(context);
+    final cs = Theme.of(context).colorScheme;
+
+    if (_isHydrating) {
+      return Scaffold(
+        backgroundColor: AppTheme.primary,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: 100,
+              ),
+              const SizedBox(height: 32),
+              const CircularProgressIndicator(color: Colors.white),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!state.hasSeenOnboarding) {
       return const OnboardingPage();
     }
 
-    if (_hasSeenOnboarding == null || _isHydrating) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    if (!_authReady) {
-      return const AuthPage();
-    }
-
-    if (_session == null) {
+    if (!_authReady || _session == null) {
       return const AuthPage();
     }
 

@@ -164,6 +164,9 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> get notifications =>
       List.unmodifiable(_notifications);
 
+  bool _hasSeenOnboarding = false;
+  bool get hasSeenOnboarding => _hasSeenOnboarding;
+
   // ── Points come from profiles.points_balance, NOT from summing papers ──────
   int _points = 0;
   bool _isAdmin = false;
@@ -185,16 +188,96 @@ class AppState extends ChangeNotifier {
 
   int get bookmarkedCount => _papers.where((p) => p.isBookmarked).length;
 
+  // ── Streak System ───────────────────────────────────────────────────────────
+  int _streak = 0;
+  DateTime? _lastActiveDate;
+  int _lastTierIndex = 0;
+  void Function(String newTier)? onTierUp;
+
+  int get streak => _streak;
+
+  int get currentTierIndex {
+    if (_points >= 600) return 3;
+    if (_points >= 300) return 2;
+    if (_points >= 100) return 1;
+    return 0;
+  }
+
+  Future<void> _loadStreak() async {
+    final prefs = await SharedPreferences.getInstance();
+    _streak = prefs.getInt('user_streak') ?? 0;
+    _lastTierIndex = prefs.getInt('last_tier_index') ?? currentTierIndex;
+    final lastActive = prefs.getString('last_active_date');
+    if (lastActive != null) {
+      _lastActiveDate = DateTime.tryParse(lastActive);
+    }
+  }
+
+  Future<void> _updateStreak() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (_lastActiveDate == null) {
+      _streak = 1;
+    } else {
+      final lastDate = DateTime(
+        _lastActiveDate!.year,
+        _lastActiveDate!.month,
+        _lastActiveDate!.day,
+      );
+      final difference = today.difference(lastDate).inDays;
+
+      if (difference == 0) {
+        // Already logged in today, do nothing
+      } else if (difference == 1) {
+        // Consecutive day
+        _streak++;
+      } else {
+        // Streak broken
+        _streak = 1;
+      }
+    }
+
+    _lastActiveDate = now;
+    await prefs.setInt('user_streak', _streak);
+    await prefs.setString('last_active_date', now.toIso8601String());
+    await prefs.setInt('last_tier_index', currentTierIndex);
+    notifyListeners();
+  }
+
+  Future<void> _checkTierUpgrade() async {
+    final newTierIndex = currentTierIndex;
+    if (newTierIndex > _lastTierIndex) {
+      final tierNames = ['Bronze', 'Silver', 'Gold', 'Platinum'];
+      final newTierName = tierNames[newTierIndex];
+      _lastTierIndex = newTierIndex;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_tier_index', newTierIndex);
+      
+      onTierUp?.call(newTierName);
+      notifyListeners();
+    }
+  }
+
   // ── Hydration ──────────────────────────────────────────────────────────────
 
   /// Full hydration: fetches profile (and points balance) + papers from Supabase.
   Future<void> hydrateFromSupabase(SupabaseBackend backend) async {
+    // Load and update streak on app open
+    await _loadStreak();
+    await _updateStreak();
+
     // 1. Refresh admin flag
     await backend.refreshAdminStatus();
     _isAdmin = backend.isAdmin;
 
     // 2. Refresh profile — this is where _points is now set
     await _refreshUserProfile(backend);
+
+    // Check for tier upgrade
+    await _checkTierUpgrade();
 
     // Render cached papers immediately so the app stays responsive on slow networks.
     final cached = await _loadLocalPapers();
@@ -263,6 +346,7 @@ class AppState extends ChangeNotifier {
 
       // 3. Optional: Leaderboard & local data
       await _loadThemeMode();
+      await _loadOnboardingStatus();
       await _refreshLeaderboard(backend);
       _ensureDefaultNotifications();
 
@@ -271,6 +355,7 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       // Offline fallback: use cache
       await _loadThemeMode();
+      await _loadOnboardingStatus();
       final cached = await _loadLocalPapers();
       if (cached.isNotEmpty) {
         _papers
@@ -337,7 +422,29 @@ class AppState extends ChangeNotifier {
     if (mode == 'system') _themeMode = ThemeMode.system;
   }
 
+  Future<void> setHasSeenOnboarding(bool seen) async {
+    _hasSeenOnboarding = seen;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_onboarding', seen);
+    notifyListeners();
+  }
+
+  Future<void> _loadOnboardingStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    _hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+  }
+
   Future<void> refreshData() => hydrateFromSupabase(SupabaseBackend.instance);
+
+  Future<bool> deletePaper(String paperId, String? storagePath) async {
+    final success = await SupabaseBackend.instance.deletePaper(paperId, storagePath);
+    if (success) {
+      _papers.removeWhere((p) => p.id == paperId);
+      _myUploads.removeWhere((p) => p.id == paperId);
+      notifyListeners();
+    }
+    return success;
+  }
 
   // ── Queries ────────────────────────────────────────────────────────────────
 

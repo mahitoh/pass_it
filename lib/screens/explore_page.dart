@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../data/app_state.dart';
 import 'paper_detail_page.dart';
+import '../theme/app_theme.dart';
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({super.key, this.initialQuery = ''});
@@ -102,7 +103,18 @@ class _ExplorePageState extends State<ExplorePage> {
                       hintStyle: GoogleFonts.inter(color: cs.onSurfaceVariant),
                       filled: true,
                       fillColor: cs.surfaceContainerHigh,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: cs.primary, width: 1.5),
+                      ),
                       prefixIcon: Icon(Icons.search_rounded, color: cs.onSurfaceVariant, size: 20),
                       suffixIcon: _searchCtrl.text.isNotEmpty
                           ? IconButton(icon: Icon(Icons.close_rounded, color: cs.onSurfaceVariant, size: 18), onPressed: () => setState(() => _searchCtrl.clear()))
@@ -206,7 +218,6 @@ class _CategoryChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? cs.primary : cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? cs.primary : cs.outlineVariant.withOpacity(0.3)),
         ),
         child: Text(label, style: GoogleFonts.inter(fontSize: 13, fontWeight: selected ? FontWeight.w600 : FontWeight.w400, color: selected ? Colors.white : cs.onSurfaceVariant)),
       ),
@@ -270,8 +281,8 @@ class _PaperResultCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: cs.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppTheme.ambientShadow(),
         ),
         child: Row(
           children: [

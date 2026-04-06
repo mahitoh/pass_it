@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../data/app_state.dart';
 import '../data/upload_pipeline.dart';
 import '../data/supabase_backend.dart';
+import '../data/document_scanner_service.dart';
+import 'document_scanner_preview_page.dart';
 
 class UploadWorkflowPage extends StatefulWidget {
   const UploadWorkflowPage({super.key});
@@ -18,6 +23,7 @@ class UploadWorkflowPage extends StatefulWidget {
 class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
   final PageController _pageController = PageController();
   final UploadPipeline _uploadPipeline = UploadPipeline();
+  final DocumentScannerService _scannerService = DocumentScannerService();
 
   int _currentStep = 0;
   bool _isUploading = false;
@@ -25,6 +31,10 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
   String _uploadStage = 'Waiting for a file';
   String? _errorMessage;
   PlatformFile? _selectedFile;
+  bool _scannerAvailable = Platform.isAndroid || Platform.isIOS;
+
+  // Scanner mode: 'upload', 'scan', or null (not selected)
+  String? _uploadMode;
 
   String _selectedLevel = 'University';
   String _selectedInstitution = 'University of Buea';
@@ -140,12 +150,13 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
   @override
   void dispose() {
     _pageController.dispose();
+    _scannerService.dispose();
     super.dispose();
   }
 
   Future<void> _goNext() async {
     final next = _currentStep + 1;
-    if (next < 5) {
+    if (next < 6) {
       await _pageController.animateToPage(
         next,
         duration: const Duration(milliseconds: 240),
@@ -192,7 +203,7 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
         allowMultiple: false,
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-        withData: false,
+        withData: true,
       );
       if (result == null || result.files.isEmpty) return;
       setState(() {
@@ -204,11 +215,147 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
     }
   }
 
+  Future<String?> _ensureLocalFilePath(PlatformFile file) async {
+    if (file.path != null && file.path!.isNotEmpty) {
+      return file.path;
+    }
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      return null;
+    }
+
+    final appDir = await getApplicationCacheDirectory();
+    final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final fallbackPath =
+        '${appDir.path}/picked_${DateTime.now().millisecondsSinceEpoch}_$safeName';
+    final outFile = File(fallbackPath);
+    await outFile.writeAsBytes(bytes, flush: true);
+    return outFile.path;
+  }
+
+  Future<void> _scanDocument() async {
+    try {
+      if (!Platform.isAndroid && !Platform.isIOS) {
+        if (mounted) {
+          setState(
+            () => _errorMessage =
+                'Document scanning is only available on Android and iOS. Use file upload on this device.',
+          );
+        }
+        return;
+      }
+
+      // Request camera permission
+      final cameraStatus = await Permission.camera.request();
+      if (!cameraStatus.isGranted) {
+        if (mounted) {
+          setState(
+            () => _errorMessage =
+                'Camera permission is required to scan documents.',
+          );
+        }
+        return;
+      }
+
+      debugPrint('[Upload] Starting document scan...');
+
+      if (!mounted) return;
+
+      // Initialize and launch scanner
+      final scanResult = await _scannerService.scanDocument();
+
+      if (scanResult == null || (scanResult.images?.isEmpty ?? true)) {
+        if (mounted) {
+          setState(() => _errorMessage = 'No pages scanned. Please try again.');
+        }
+        return;
+      }
+
+      debugPrint(
+        '[Upload] Scan completed with ${(scanResult.images?.length ?? 0)} pages',
+      );
+
+      if (!mounted) return;
+
+      // Extract image paths from the scan result
+      final imagePaths = _scannerService.extractImagePaths(scanResult);
+
+      if (imagePaths.isEmpty) {
+        if (mounted) {
+          setState(
+            () => _errorMessage =
+                'Failed to extract scanned images. Please try again.',
+          );
+        }
+        return;
+      }
+
+      // Show preview page
+      final pdfFile = await Navigator.push<File>(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              DocumentScannerPreviewPage(imagePaths: imagePaths),
+        ),
+      );
+
+      if (pdfFile != null && mounted) {
+        debugPrint('[Upload] PDF generated: ${pdfFile.path}');
+        // Convert File to PlatformFile
+        final fileName =
+            'scanned_document_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        setState(() {
+          _selectedFile = PlatformFile(
+            name: fileName,
+            path: pdfFile.path,
+            size: pdfFile.lengthSync(),
+            identifier: pdfFile.path,
+          );
+          _errorMessage = null;
+          _uploadMode = 'scan';
+        });
+        // Move to metadata selection steps
+        await _goNext();
+      }
+    } catch (e) {
+      if (mounted) {
+        final message = e.toString();
+        setState(() {
+          _errorMessage = 'Error scanning document: $message';
+          if (message.contains('Document scanner is not available')) {
+            _scannerAvailable = false;
+          }
+        });
+      }
+      debugPrint('[Upload] Scan error: $e');
+    }
+  }
+
+  Future<void> _selectUploadMode(String mode) async {
+    setState(() => _uploadMode = mode);
+
+    if (mode == 'scan') {
+      await _scanDocument();
+    } else if (mode == 'upload') {
+      await _goNext();
+    }
+  }
+
   Future<void> _submitContribution() async {
-    if (_selectedFile?.path == null) {
+    if (_selectedFile == null) {
       setState(() => _errorMessage = 'Choose a file before submitting.');
       return;
     }
+
+    final sourcePath = await _ensureLocalFilePath(_selectedFile!);
+    if (sourcePath == null) {
+      setState(
+        () => _errorMessage =
+            'Could not access the selected file. Please pick it again.',
+      );
+      return;
+    }
+
     final appState = AppStateScope.of(context);
     setState(() {
       _isUploading = true;
@@ -224,7 +371,7 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
           course: _selectedCourse,
           year: _selectedYear,
           fileName: _selectedFile!.name,
-          sourcePath: _selectedFile!.path!,
+          sourcePath: sourcePath,
         ),
         appState: appState,
         supabaseBackend: SupabaseBackend.instance,
@@ -287,7 +434,7 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
               ),
             ),
             Text(
-              'Step ${_currentStep + 1} of 5',
+              'Step ${_currentStep + 1} of 6',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 color: cs.onSurfaceVariant,
@@ -298,7 +445,7 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
-          child: _ProgressBar(current: _currentStep, total: 5),
+          child: _ProgressBar(current: _currentStep, total: 6),
         ),
       ),
       body: PageView(
@@ -306,6 +453,13 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
         physics: const NeverScrollableScrollPhysics(),
         onPageChanged: (i) => setState(() => _currentStep = i),
         children: [
+          // Step 0: Select upload mode (Scan or Upload)
+          _UploadModeSelectionStep(
+            onSelectScan: () => _selectUploadMode('scan'),
+            onSelectUpload: () => _selectUploadMode('upload'),
+            scannerAvailable: _scannerAvailable,
+            errorMessage: _uploadMode == null ? _errorMessage : null,
+          ),
           _SelectionStep(
             title: 'Select Level',
             subtitle: 'What type of exam is this paper from?',
@@ -342,6 +496,7 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
             errorMessage: _errorMessage,
             onPickFile: _pickFile,
             onSubmit: _submitContribution,
+            uploadMode: _uploadMode,
           ),
         ],
       ),
@@ -355,6 +510,293 @@ class _UploadWorkflowPageState extends State<UploadWorkflowPage> {
     'Competitive' => Icons.emoji_events_rounded,
     _ => Icons.description_rounded,
   };
+}
+
+class _UploadModeSelectionStep extends StatelessWidget {
+  final VoidCallback onSelectScan;
+  final VoidCallback onSelectUpload;
+  final bool scannerAvailable;
+  final String? errorMessage;
+
+  const _UploadModeSelectionStep({
+    required this.onSelectScan,
+    required this.onSelectUpload,
+    required this.scannerAvailable,
+    this.errorMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'How do you want to submit?',
+              style: GoogleFonts.manrope(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Choose between uploading an existing file or scanning a new document.',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Scan option
+            GestureDetector(
+              onTap: scannerAvailable ? onSelectScan : null,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: scannerAvailable
+                      ? cs.surfaceContainerLowest
+                      : cs.surfaceContainerHigh.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: scannerAvailable
+                        ? cs.outlineVariant.withValues(alpha: 0.3)
+                        : cs.outlineVariant.withValues(alpha: 0.18),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.photo_camera_rounded,
+                        size: 24,
+                        color: cs.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Scan Document',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: scannerAvailable
+                            ? cs.onSurface
+                            : cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      scannerAvailable
+                          ? 'Use your camera to scan and upload a document. Multi-page support with PDF generation.'
+                          : 'Scanner unavailable in this runtime. Use file upload instead.',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: scannerAvailable
+                            ? cs.onSurfaceVariant
+                            : cs.error,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 14,
+                                color: scannerAvailable
+                                    ? cs.primary
+                                    : cs.outlineVariant,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Multi-page',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: scannerAvailable
+                                      ? cs.onSurfaceVariant
+                                      : cs.outlineVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 14,
+                                color: scannerAvailable
+                                    ? cs.primary
+                                    : cs.outlineVariant,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Edge detection',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: scannerAvailable
+                                      ? cs.onSurfaceVariant
+                                      : cs.outlineVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Upload option
+            GestureDetector(
+              onTap: onSelectUpload,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: cs.outlineVariant.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: cs.secondary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.upload_file_rounded,
+                        size: 24,
+                        color: cs.secondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Upload File',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Choose a PDF or image from your device to upload.',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 14,
+                                color: cs.secondary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'PDF, JPG, PNG',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 14,
+                                color: cs.secondary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Max 20 MB',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (errorMessage != null) ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: cs.error.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: cs.error,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        errorMessage!,
+                        style: GoogleFonts.inter(fontSize: 13, color: cs.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ProgressBar extends StatelessWidget {
@@ -616,6 +1058,7 @@ class _FileAndReviewStep extends StatelessWidget {
   final String? errorMessage;
   final VoidCallback onPickFile;
   final VoidCallback onSubmit;
+  final String? uploadMode;
 
   const _FileAndReviewStep({
     required this.autoTitle,
@@ -626,6 +1069,7 @@ class _FileAndReviewStep extends StatelessWidget {
     required this.errorMessage,
     required this.onPickFile,
     required this.onSubmit,
+    required this.uploadMode,
   });
 
   @override
@@ -639,7 +1083,7 @@ class _FileAndReviewStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Upload File',
+            uploadMode == 'scan' ? 'Review Scanned Document' : 'Upload File',
             style: GoogleFonts.manrope(
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -648,28 +1092,83 @@ class _FileAndReviewStep extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Choose the PDF or image of the past paper.',
+            uploadMode == 'scan'
+                ? 'Your scanned PDF is ready. Review the details below.'
+                : 'Choose the PDF or image of the past paper.',
             style: GoogleFonts.inter(fontSize: 14, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
 
-          GestureDetector(
-            onTap: isUploading ? null : onPickFile,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              decoration: BoxDecoration(
-                color: hasFile
-                    ? cs.primary.withValues(alpha: 0.06)
-                    : cs.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
+          if (uploadMode != 'scan')
+            GestureDetector(
+              onTap: isUploading ? null : onPickFile,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                decoration: BoxDecoration(
                   color: hasFile
-                      ? cs.primary
-                      : cs.outlineVariant.withValues(alpha: 0.3),
-                  width: hasFile ? 1.5 : 1,
+                      ? cs.primary.withValues(alpha: 0.06)
+                      : cs.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: hasFile
+                        ? cs.primary
+                        : cs.outlineVariant.withValues(alpha: 0.3),
+                    width: hasFile ? 1.5 : 1,
+                  ),
                 ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: hasFile
+                            ? cs.primary.withValues(alpha: 0.12)
+                            : cs.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        hasFile
+                            ? Icons.check_circle_rounded
+                            : Icons.upload_file_outlined,
+                        size: 26,
+                        color: hasFile ? cs.primary : cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      hasFile ? selectedFile!.name : 'Tap to choose a file',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: hasFile ? cs.primary : cs.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasFile
+                          ? '${(selectedFile!.size / 1024).round()} KB · Ready'
+                          : 'PDF, JPG, PNG · Max 20 MB',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cs.primary, width: 1.5),
               ),
               child: Column(
                 children: [
@@ -677,34 +1176,28 @@ class _FileAndReviewStep extends StatelessWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: hasFile
-                          ? cs.primary.withValues(alpha: 0.12)
-                          : cs.surfaceContainerHigh,
+                      color: cs.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
-                      hasFile
-                          ? Icons.check_circle_rounded
-                          : Icons.upload_file_outlined,
+                      Icons.picture_as_pdf_rounded,
                       size: 26,
-                      color: hasFile ? cs.primary : cs.onSurfaceVariant,
+                      color: cs.primary,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    hasFile ? selectedFile!.name : 'Tap to choose a file',
+                    selectedFile!.name,
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: hasFile ? cs.primary : cs.onSurface,
+                      color: cs.primary,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    hasFile
-                        ? '${(selectedFile!.size / 1024).round()} KB · Ready'
-                        : 'PDF, JPG, PNG · Max 20 MB',
+                    '${(selectedFile!.size / 1024).round()} KB · Ready to upload',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: cs.onSurfaceVariant,
@@ -713,9 +1206,55 @@ class _FileAndReviewStep extends StatelessWidget {
                 ],
               ),
             ),
-          ),
 
           const SizedBox(height: 24),
+
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.stars_rounded, size: 20, color: cs.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Earn +50 points',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'You\'ll receive points once your paper is approved',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
 
           Container(
             padding: const EdgeInsets.all(14),

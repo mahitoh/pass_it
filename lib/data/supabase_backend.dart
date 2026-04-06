@@ -473,6 +473,23 @@ class SupabaseBackend {
       return const {};
     }
   }
+
+  Future<bool> deletePaper(String paperId, String? storagePath) async {
+    if (!_isReady) return false;
+    try {
+      // Delete from storage first
+      if (storagePath != null && storagePath.isNotEmpty) {
+        try {
+          await _client.storage.from(supabaseStorageBucket).remove([storagePath]);
+        } catch (_) {}
+      }
+      // Delete from database
+      await _client.from(supabaseTableName).delete().eq('id', paperId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 class SupabaseUploadResult {
