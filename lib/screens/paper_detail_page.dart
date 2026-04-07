@@ -114,7 +114,30 @@ class _ReadButton extends StatelessWidget {
     }
 
     await appState.recordView(paper.id);
+    await appState.recordDownload(paper.id);
     if (!context.mounted) return;
+
+    final totalDownloads =
+        appState.paperById(paper.id)?.downloads ?? (paper.downloads + 1);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.download_done_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text('Download counted - $totalDownloads total'),
+          ],
+        ),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
 
     // If the file is an image type, just open in browser — no point using PDF viewer
     final isImage =

@@ -18,6 +18,7 @@ import 'competitive_exams_page.dart';
 import 'admin_dashboard_page.dart';
 import 'level_papers_page.dart';
 import '../theme/app_theme.dart';
+import '../widgets/offline_banner.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -51,10 +52,11 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final page = _pages[_currentIndex == 2 ? 0 : _currentIndex];
 
     return Scaffold(
       drawer: const _TwitterLikeDrawer(),
-      body: _pages[_currentIndex == 2 ? 0 : _currentIndex],
+      body: _currentIndex == 0 ? OfflineBanner(child: page) : page,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: cs.surface.withOpacity(0.96),
@@ -209,47 +211,51 @@ class HomeContent extends StatelessWidget {
     final recentPapers = appState.recentPapers();
     final trendingPapers = appState.trendingPapers();
 
-    return CustomScrollView(
-      slivers: [
-        _AppBar(
-          greeting: _greeting,
-          userName: appState.userName,
-          points: appState.points,
-          streak: appState.streak,
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              _SearchBar(),
-              const SizedBox(height: 28),
-              _SectionHeader(title: 'Browse by Level'),
-              const SizedBox(height: 14),
-              _CategoryGrid(),
-              const SizedBox(height: 32),
-              _SectionHeader(
-                title: 'Trending Now',
-                actionLabel: 'See all',
-                onAction: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ExplorePage()),
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
-              _TrendingStrip(papers: trendingPapers),
-              const SizedBox(height: 32),
-              _UploadBanner(),
-              const SizedBox(height: 32),
-              _SectionHeader(title: 'Recently Added'),
-              const SizedBox(height: 14),
-              _RecentList(papers: recentPapers),
-              const SizedBox(height: 24),
-            ]),
+    return RefreshIndicator(
+      onRefresh: appState.refreshData,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          _AppBar(
+            greeting: _greeting,
+            userName: appState.userName,
+            points: appState.points,
+            streak: appState.streak,
           ),
-        ),
-      ],
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _SearchBar(),
+                const SizedBox(height: 28),
+                _SectionHeader(title: 'Browse by Level'),
+                const SizedBox(height: 14),
+                _CategoryGrid(),
+                const SizedBox(height: 32),
+                _SectionHeader(
+                  title: 'Trending Now',
+                  actionLabel: 'See all',
+                  onAction: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ExplorePage()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+                _TrendingStrip(papers: trendingPapers),
+                const SizedBox(height: 32),
+                _UploadBanner(),
+                const SizedBox(height: 32),
+                _SectionHeader(title: 'Recently Added'),
+                const SizedBox(height: 14),
+                _RecentList(papers: recentPapers),
+                const SizedBox(height: 24),
+              ]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -292,7 +298,11 @@ class _AppBar extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.local_fire_department, size: 14, color: Colors.orange),
+                  Icon(
+                    Icons.local_fire_department,
+                    size: 14,
+                    color: Colors.orange,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '$streak',
@@ -319,14 +329,7 @@ class _AppBar extends StatelessWidget {
               children: [
                 Icon(Icons.bolt_rounded, size: 14, color: cs.secondary),
                 const SizedBox(width: 4),
-                Text(
-                  '$points pts',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: cs.secondary,
-                  ),
-                ),
+                _AnimatedPoints(points: points, color: cs.secondary),
               ],
             ),
           ),
@@ -346,6 +349,73 @@ class _AppBar extends StatelessWidget {
         ),
         const SizedBox(width: 4),
       ],
+    );
+  }
+}
+
+class _AnimatedPoints extends StatefulWidget {
+  const _AnimatedPoints({required this.points, required this.color});
+
+  final int points;
+  final Color color;
+
+  @override
+  State<_AnimatedPoints> createState() => _AnimatedPointsState();
+}
+
+class _AnimatedPointsState extends State<_AnimatedPoints>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Animation<double> _animation;
+  int _displayed = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _buildAnimation(begin: 0, end: widget.points);
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedPoints oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.points == widget.points) return;
+    _buildAnimation(begin: _displayed, end: widget.points);
+    _controller
+      ..reset()
+      ..forward();
+  }
+
+  void _buildAnimation({required int begin, required int end}) {
+    _animation = Tween<double>(
+      begin: begin.toDouble(),
+      end: end.toDouble(),
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _animation.addListener(() {
+      if (!mounted) return;
+      setState(() => _displayed = _animation.value.round());
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '$_displayed pts',
+      style: GoogleFonts.manrope(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: widget.color,
+      ),
     );
   }
 }

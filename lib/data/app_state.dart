@@ -252,10 +252,10 @@ class AppState extends ChangeNotifier {
       final tierNames = ['Bronze', 'Silver', 'Gold', 'Platinum'];
       final newTierName = tierNames[newTierIndex];
       _lastTierIndex = newTierIndex;
-      
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('last_tier_index', newTierIndex);
-      
+
       onTierUp?.call(newTierName);
       notifyListeners();
     }
@@ -437,10 +437,14 @@ class AppState extends ChangeNotifier {
   Future<void> refreshData() => hydrateFromSupabase(SupabaseBackend.instance);
 
   Future<bool> deletePaper(String paperId, String? storagePath) async {
-    final success = await SupabaseBackend.instance.deletePaper(paperId, storagePath);
+    final success = await SupabaseBackend.instance.deletePaper(
+      paperId,
+      storagePath,
+    );
     if (success) {
       _papers.removeWhere((p) => p.id == paperId);
       _myUploads.removeWhere((p) => p.id == paperId);
+      await _persistLocalPapers();
       notifyListeners();
     }
     return success;

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'supabase_config.dart';
@@ -476,15 +477,45 @@ class SupabaseBackend {
 
   Future<bool> deletePaper(String paperId, String? storagePath) async {
     if (!_isReady) return false;
+    debugPrint(
+      '[DeletePaper] Attempting to delete paperId: $paperId, storagePath: $storagePath',
+    );
     try {
-      // Delete from storage first
-      if (storagePath != null && storagePath.isNotEmpty) {
+      var deletedRows = await _client
+          .from(supabaseTableName)
+          .delete()
+          .eq('id', paperId)
+          .select('id, storage_path');
+
+      var deleted = List<Map<String, dynamic>>.from(deletedRows);
+      debugPrint('[DeletePaper] Direct delete result: ${deleted.length} rows');
+
+      // Fallback: older cached/local items can carry a non-DB id.
+      // In that case try deleting by storage_path which is unique per upload.
+      if (deleted.isEmpty && storagePath != null && storagePath.isNotEmpty) {
+        deletedRows = await _client
+            .from(supabaseTableName)
+            .delete()
+            .eq('storage_path', storagePath)
+            .select('id, storage_path');
+        deleted = List<Map<String, dynamic>>.from(deletedRows);
+      }
+
+      if (deleted.isEmpty) {
+        return false;
+      }
+
+      final storageToDelete =
+          storagePath ?? (deleted.first['storage_path'] ?? '').toString();
+
+      if (storageToDelete.isNotEmpty) {
         try {
-          await _client.storage.from(supabaseStorageBucket).remove([storagePath]);
+          await _client.storage.from(supabaseStorageBucket).remove([
+            storageToDelete,
+          ]);
         } catch (_) {}
       }
-      // Delete from database
-      await _client.from(supabaseTableName).delete().eq('id', paperId);
+
       return true;
     } catch (_) {
       return false;

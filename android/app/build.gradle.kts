@@ -42,3 +42,5 @@ android {
 flutter {
     source = "../.."
 }
+
+project.archivesBaseName = "pass_it"

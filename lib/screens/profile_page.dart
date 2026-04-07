@@ -30,245 +30,252 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: cs.surface,
-            surfaceTintColor: Colors.transparent,
-            pinned: true,
-            title: Text(
-              'Profile',
-              style: GoogleFonts.manrope(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-              ),
-            ),
-            centerTitle: false,
-            titleSpacing: 20,
-            actions: [
-              IconButton(
-                onPressed: () => _showSettings(context),
-                icon: Icon(
-                  Icons.settings_outlined,
+      body: RefreshIndicator(
+        onRefresh: appState.refreshData,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              backgroundColor: cs.surface,
+              surfaceTintColor: Colors.transparent,
+              pinned: true,
+              title: Text(
+                'Profile',
+                style: GoogleFonts.manrope(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
                   color: cs.onSurface,
-                  size: 22,
                 ),
               ),
-              const SizedBox(width: 8),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: AppTheme.ambientShadow(),
+              centerTitle: false,
+              titleSpacing: 20,
+              actions: [
+                IconButton(
+                  onPressed: () => _showSettings(context),
+                  icon: Icon(
+                    Icons.settings_outlined,
+                    color: cs.onSurface,
+                    size: 22,
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 34,
-                            backgroundColor: cs.primary,
-                            child: Text(
-                              _initials(appState.userName),
-                              style: GoogleFonts.manrope(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: AppTheme.ambientShadow(),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 34,
+                              backgroundColor: cs.primary,
+                              child: Text(
+                                _initials(appState.userName),
+                                style: GoogleFonts.manrope(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  appState.userName,
-                                  style: GoogleFonts.manrope(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: cs.onSurface,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    appState.userName,
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: cs.onSurface,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  '${appState.institution} · ${appState.department}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: cs.onSurfaceVariant,
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${appState.institution} · ${appState.department}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        (isAdmin
-                                                ? const Color(0xFFD4A017)
-                                                : cs.primary)
-                                            .withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: AppTheme.ghostBorder(opacity: 0.1),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        isAdmin
-                                            ? Icons.admin_panel_settings_rounded
-                                            : Icons.verified_rounded,
-                                        size: 12,
-                                        color: isAdmin
-                                            ? const Color(0xFFD4A017)
-                                            : cs.primary,
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          (isAdmin
+                                                  ? const Color(0xFFD4A017)
+                                                  : cs.primary)
+                                              .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: AppTheme.ghostBorder(
+                                        opacity: 0.1,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        isAdmin
-                                            ? 'Administrator'
-                                            : 'Verified Contributor',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isAdmin
+                                              ? Icons
+                                                    .admin_panel_settings_rounded
+                                              : Icons.verified_rounded,
+                                          size: 12,
                                           color: isAdmin
                                               ? const Color(0xFFD4A017)
                                               : cs.primary,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          isAdmin
+                                              ? 'Administrator'
+                                              : 'Verified Contributor',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: isAdmin
+                                                ? const Color(0xFFD4A017)
+                                                : cs.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _StatBox(
-                            value: '${appState.points}',
-                            label: 'Points',
-                            color: cs.primary,
-                          ),
-                          _StatDivider(),
-                          _StatBox(
-                            value: '${appState.contributions}',
-                            label: 'Uploads',
-                            color: cs.secondary,
-                          ),
-                          _StatDivider(),
-                          _StatBox(
-                            value: '${appState.bookmarkedCount}',
-                            label: 'Saved',
-                            color: const Color(0xFF7B2D8B),
-                          ),
-                          _StatDivider(),
-                          _StatBox(
-                            value: 'Top 5%',
-                            label: 'Rank',
-                            color: const Color(0xFFD4A017),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _Section(
-                  title: 'Saved Papers',
-                  child: _BookmarksList(appState: appState),
-                ),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    'Account',
-                    style: GoogleFonts.manrope(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: cs.onSurface,
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _StatBox(
+                              value: '${appState.points}',
+                              label: 'Points',
+                              color: cs.primary,
+                            ),
+                            _StatDivider(),
+                            _StatBox(
+                              value: '${appState.contributions}',
+                              label: 'Uploads',
+                              color: cs.secondary,
+                            ),
+                            _StatDivider(),
+                            _StatBox(
+                              value: '${appState.bookmarkedCount}',
+                              label: 'Saved',
+                              color: const Color(0xFF7B2D8B),
+                            ),
+                            _StatDivider(),
+                            _StatBox(
+                              value: 'Top 5%',
+                              label: 'Rank',
+                              color: const Color(0xFFD4A017),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerLowest,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: AppTheme.ambientShadow(),
+                  const SizedBox(height: 24),
+                  _Section(
+                    title: 'Saved Papers',
+                    child: _BookmarksList(appState: appState),
                   ),
-                  child: Column(
-                    children: [
-                      _ActionTile(
-                        icon: Icons.history_rounded,
-                        label: 'My Contributions',
-                        onTap: () => _showContributions(context, appState),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      'Account',
+                      style: GoogleFonts.manrope(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
-                      if (isAdmin)
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: AppTheme.ambientShadow(),
+                    ),
+                    child: Column(
+                      children: [
                         _ActionTile(
-                          icon: Icons.admin_panel_settings_outlined,
-                          label: 'Admin Dashboard',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const AdminDashboardPage(),
-                              ),
-                            );
-                          },
+                          icon: Icons.history_rounded,
+                          label: 'My Contributions',
+                          onTap: () => _showContributions(context, appState),
                         ),
-                      _ActionTile(
-                        icon: Icons.bookmark_border_rounded,
-                        label: 'Bookmarked Papers',
-                        onTap: () => _showBookmarkedPapers(context, appState),
-                      ),
-                      _ActionTile(
-                        icon: Icons.notifications_none_rounded,
-                        label: 'Notification Settings',
-                        onTap: () => _showNotificationSettings(context),
-                      ),
-                      _ActionTile(
-                        icon: Icons.help_outline_rounded,
-                        label: 'Help & Resources',
-                        onTap: () => _showHelp(context),
-                      ),
-                      _ActionTile(
-                        icon: Icons.lock_outline_rounded,
-                        label: 'Privacy & Safety',
-                        onTap: () => _showPrivacy(context),
-                      ),
-                      _ActionTile(
-                        icon: Icons.logout_rounded,
-                        label: 'Sign Out',
-                        isDestructive: true,
-                        showDivider: false,
-                        onTap: () => _confirmLogout(context),
-                      ),
-                    ],
+                        if (isAdmin)
+                          _ActionTile(
+                            icon: Icons.admin_panel_settings_outlined,
+                            label: 'Admin Dashboard',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AdminDashboardPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        _ActionTile(
+                          icon: Icons.bookmark_border_rounded,
+                          label: 'Bookmarked Papers',
+                          onTap: () => _showBookmarkedPapers(context, appState),
+                        ),
+                        _ActionTile(
+                          icon: Icons.notifications_none_rounded,
+                          label: 'Notification Settings',
+                          onTap: () => _showNotificationSettings(context),
+                        ),
+                        _ActionTile(
+                          icon: Icons.help_outline_rounded,
+                          label: 'Help & Resources',
+                          onTap: () => _showHelp(context),
+                        ),
+                        _ActionTile(
+                          icon: Icons.lock_outline_rounded,
+                          label: 'Privacy & Safety',
+                          onTap: () => _showPrivacy(context),
+                        ),
+                        _ActionTile(
+                          icon: Icons.logout_rounded,
+                          label: 'Sign Out',
+                          isDestructive: true,
+                          showDivider: false,
+                          onTap: () => _confirmLogout(context),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
-              ],
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -512,9 +519,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
-                          p.status.isEmpty
-                              ? 'Pending'
-                              : '${p.status[0].toUpperCase()}${p.status.substring(1)}',
+                          _statusLabel(p.status),
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             color: _statusColor(p.status),
@@ -529,7 +534,12 @@ class _ProfilePageState extends State<ProfilePage> {
                           color: Theme.of(context).colorScheme.error,
                           size: 20,
                         ),
-                        onPressed: () => _confirmDelete(context, appState, p.id, p.storagePath),
+                        onPressed: () => _confirmDelete(
+                          context,
+                          appState,
+                          p.id,
+                          p.storagePath,
+                        ),
                       ),
                     ],
                   ),
@@ -541,12 +551,21 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, AppState appState, String paperId, String? storagePath) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    AppState appState,
+    String paperId,
+    String? storagePath,
+  ) async {
+    final cs = Theme.of(context).colorScheme;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Paper'),
-        content: const Text('Are you sure you want to delete this paper? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this paper? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -564,16 +583,17 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
 
-    if (confirmed == true && context.mounted) {
+    if (confirmed == true) {
       final success = await appState.deletePaper(paperId, storagePath);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Paper deleted successfully' : 'Failed to delete paper'),
-            backgroundColor: success ? null : Theme.of(context).colorScheme.error,
+      if (!context.mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            success ? 'Paper deleted successfully' : 'Failed to delete paper',
           ),
-        );
-      }
+          backgroundColor: success ? null : cs.error,
+        ),
+      );
     }
   }
 
@@ -585,6 +605,17 @@ class _ProfilePageState extends State<ProfilePage> {
         return const Color(0xFFB3261E);
       default:
         return const Color(0xFF8A6E00);
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Pending review';
     }
   }
 
