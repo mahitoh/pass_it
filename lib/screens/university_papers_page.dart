@@ -130,7 +130,7 @@ class UniversityPapersPage extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         itemCount: papers.length,
         separatorBuilder: (context, index) => Divider(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.1),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1),
           height: 1,
           indent: 16,
           endIndent: 16,

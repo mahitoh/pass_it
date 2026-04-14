@@ -52,7 +52,7 @@ class LeaderboardPage extends StatelessWidget {
                     'Be among the top 10 contributors this month to earn exclusive rewards.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
+                          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
                         ),
                   ),
                 ],
@@ -70,14 +70,14 @@ class LeaderboardPage extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Card(
                     elevation: isSelf ? 2 : 0,
-                    shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                    shadowColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                     color: isSelf 
-                      ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.05)
                       : Theme.of(context).colorScheme.surfaceContainerLow,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: isSelf 
-                        ? BorderSide(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), width: 1.5)
+                        ? BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3), width: 1.5)
                         : BorderSide.none,
                     ),
                     child: ListTile(

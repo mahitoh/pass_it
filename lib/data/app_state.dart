@@ -659,7 +659,9 @@ class AppState extends ChangeNotifier {
       final i = entry.key;
       final row = entry.value;
 
-      final level = (_read(row, 'level') ?? 'university').toString();
+      final level =
+          (_read(row, 'level') ?? _read(row, 'paper_type') ?? 'university')
+              .toString();
       final institution = (_read(row, 'institution') ?? 'Unknown').toString();
       final course = (_read(row, 'course') ?? 'Unknown').toString();
       final year = _toInt(_read(row, 'year'), fallback: now.year);
@@ -825,6 +827,7 @@ class AppState extends ChangeNotifier {
       case 'competitive':
         return PaperCategory.competitive;
       case 'high_school':
+      case 'secondary':
         return PaperCategory.highSchool;
       case 'professional':
         return PaperCategory.professional;

@@ -358,7 +358,7 @@ class _PaperScannerPageState extends State<PaperScannerPage>
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.62),
+                color: Colors.black.withValues(alpha: 0.62),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(

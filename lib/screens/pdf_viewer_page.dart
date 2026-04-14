@@ -76,21 +76,23 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         },
       );
       _stopSpeedTimer();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _localFile = file;
           _phase = _Phase.rendering;
         });
+      }
     } on PdfDownloadCancelledException {
       _stopSpeedTimer();
       if (mounted) setState(() => _phase = _Phase.cancelled);
     } catch (e) {
       _stopSpeedTimer();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorMsg = e.toString();
           _phase = _Phase.failed;
         });
+      }
     }
   }
 
@@ -117,11 +119,12 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
               return s < 60 ? '${s}s left' : '${(s / 60).ceil()}m left';
             }()
           : '';
-      if (mounted)
+      if (mounted) {
         setState(() {
           _speedLabel = speed;
           _etaLabel = eta;
         });
+      }
     });
   }
 
@@ -269,19 +272,22 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                   canShowScrollStatus: true,
                   enableDoubleTapZooming: true,
                   onDocumentLoaded: (d) {
-                    if (mounted)
+                    if (mounted) {
                       setState(() => _totalPages = d.document.pages.count);
+                    }
                   },
                   onPageChanged: (d) {
-                    if (mounted)
+                    if (mounted) {
                       setState(() => _currentPage = d.newPageNumber - 1);
+                    }
                   },
                   onDocumentLoadFailed: (_) {
-                    if (mounted)
+                    if (mounted) {
                       setState(() {
                         _errorMsg = 'Could not render cached file.';
                         _phase = _Phase.failed;
                       });
+                    }
                   },
                 )
               : _ErrorWidget(
@@ -534,7 +540,7 @@ class _DownloadWidget extends StatelessWidget {
                 icon: const Icon(Icons.close_rounded, size: 18),
                 label: Text('Cancel', style: GoogleFonts.inter(fontSize: 14)),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
+                  side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -592,7 +598,7 @@ class _ErrorWidget extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: cs.error.withOpacity(0.08),
+                color: cs.error.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -664,7 +670,7 @@ class _ErrorWidget extends StatelessWidget {
                   style: GoogleFonts.inter(fontSize: 14),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
+                  side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

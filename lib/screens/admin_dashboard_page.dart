@@ -7,49 +7,50 @@ import '../data/supabase_backend.dart';
 import 'admin_users_page.dart';
 import 'admin_institutions_page.dart';
 
+// ─── Shell ────────────────────────────────────────────────────────────────────
+
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
-
   @override
   State<AdminDashboardPage> createState() => _AdminDashboardPageState();
 }
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
-  int _currentIndex = 0;
+  int _tab = 0;
+
+  static const _pages = [
+    AdminPapersView(),
+    AdminUsersPage(),
+    AdminInstitutionsPage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: const [
-          AdminPapersView(),
-          AdminUsersPage(),
-          AdminInstitutionsPage(),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        selectedItemColor: cs.primary,
-        unselectedItemColor: cs.onSurfaceVariant,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.description_outlined),
-            activeIcon: Icon(Icons.description),
-            label: 'Papers',
+      body: IndexedStack(index: _tab, children: _pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        backgroundColor: cs.surface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: cs.primary.withValues(alpha: 0.12),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: [
+          NavigationDestination(
+            icon: Icon(Icons.inbox_outlined, color: cs.onSurfaceVariant),
+            selectedIcon: Icon(Icons.inbox_rounded, color: cs.primary),
+            label: 'Reviews',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            activeIcon: Icon(Icons.people),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline_rounded, color: cs.onSurfaceVariant),
+            selectedIcon: Icon(Icons.people_rounded, color: cs.primary),
             label: 'Users',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.school_outlined),
-            activeIcon: Icon(Icons.school),
-            label: 'Institutes',
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_outlined, color: cs.onSurfaceVariant),
+            selectedIcon: Icon(Icons.account_balance_rounded, color: cs.primary),
+            label: 'Institutions',
           ),
         ],
       ),
@@ -57,9 +58,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 }
 
+// ─── Papers View ──────────────────────────────────────────────────────────────
+
 class AdminPapersView extends StatefulWidget {
   const AdminPapersView({super.key});
-
   @override
   State<AdminPapersView> createState() => _AdminPapersViewState();
 }
@@ -67,145 +69,99 @@ class AdminPapersView extends StatefulWidget {
 class _AdminPapersViewState extends State<AdminPapersView> {
   bool _isLoading = true;
   String? _error;
-
-  // All pending rows fetched from DB
-  List<Map<String, dynamic>> _pendingRows = const [];
-  // Track which paperIds are being actioned so the button shows a spinner
-  final Set<String> _actioningIds = {};
+  List<Map<String, dynamic>> _rows = const [];
+  final Set<String> _busy = {};
 
   @override
   void initState() {
     super.initState();
-    _loadPending();
+    _load();
   }
 
-  // ── Data loading ─────────────────────────────────────────────────────────
+  // ── data ──────────────────────────────────────────────────────────────────
 
-  Future<void> _loadPending() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _load() async {
+    setState(() { _isLoading = true; _error = null; });
     try {
-      // get_pending_papers() RPC returns uploader_name in one query
       final rows = await SupabaseBackend.instance.fetchPendingContributions();
       if (!mounted) return;
-      setState(() {
-        _pendingRows = rows;
-        _isLoading = false;
-      });
+      setState(() { _rows = rows; _isLoading = false; });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      setState(() { _error = e.toString(); _isLoading = false; });
     }
   }
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  // ── actions ───────────────────────────────────────────────────────────────
 
   Future<void> _approve(Map<String, dynamic> row) async {
-    final paperId = _id(row);
-    if (paperId.isEmpty) {
-      _showError('This paper has no ID — cannot approve.');
-      return;
-    }
-
-    setState(() => _actioningIds.add(paperId));
+    final id = _rowId(row);
+    if (id.isEmpty) return;
+    setState(() => _busy.add(id));
     try {
-      await SupabaseBackend.instance.approveContribution(paperId: paperId);
-
-      // Remove from local list immediately so the UI updates without
-      // waiting for the full reload.
-      if (mounted) {
-        setState(() {
-          _pendingRows = _pendingRows.where((r) => _id(r) != paperId).toList();
-          _actioningIds.remove(paperId);
-        });
-      }
-
-      // Refresh app state so the public feed picks up the newly approved paper.
+      await SupabaseBackend.instance.approveContribution(paperId: id);
+      if (!mounted) return;
+      setState(() {
+        _rows = _rows.where((r) => _rowId(r) != id).toList();
+        _busy.remove(id);
+      });
       await AppState.instance.refreshData();
-
-      if (mounted) {
-        _showSuccess('Paper approved — uploader earned 50 pts!');
-      }
+      if (mounted) _toast('✅ Approved — uploader earned 50 pts!');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _actioningIds.remove(paperId));
-      _showError('Approve failed: $e');
+      setState(() => _busy.remove(id));
+      _toast('Approve failed: $e', isError: true);
     }
   }
 
   Future<void> _reject(Map<String, dynamic> row) async {
-    final paperId = _id(row);
-    if (paperId.isEmpty) {
-      _showError('This paper has no ID — cannot reject.');
-      return;
-    }
-
-    // Prompt for an optional rejection reason
-    final note = await _promptRejectionNote();
-    if (note == null) return; // user cancelled
-
-    setState(() => _actioningIds.add(paperId));
+    final id = _rowId(row);
+    if (id.isEmpty) return;
+    final note = await _askRejectionNote();
+    if (note == null) return;
+    setState(() => _busy.add(id));
     try {
-      await SupabaseBackend.instance.rejectContribution(
-        paperId: paperId,
-        rejectionNote: note,
-      );
-
-      if (mounted) {
-        setState(() {
-          _pendingRows = _pendingRows.where((r) => _id(r) != paperId).toList();
-          _actioningIds.remove(paperId);
-        });
-      }
-
-      if (mounted) _showSuccess('Paper rejected.');
+      await SupabaseBackend.instance.rejectContribution(paperId: id, rejectionNote: note);
+      if (!mounted) return;
+      setState(() {
+        _rows = _rows.where((r) => _rowId(r) != id).toList();
+        _busy.remove(id);
+      });
+      if (mounted) _toast('Paper rejected.');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _actioningIds.remove(paperId));
-      _showError('Reject failed: $e');
+      setState(() => _busy.remove(id));
+      _toast('Reject failed: $e', isError: true);
     }
   }
 
-  Future<void> _editAndApprove(Map<String, dynamic> row) async {
-    final paperId = _id(row);
-    if (paperId.isEmpty) return;
-
-    final fileNameCtrl = TextEditingController(text: _val(row, ['file_name']));
-    final institutionCtrl = TextEditingController(
-      text: _val(row, ['institution']),
-    );
+  Future<void> _editApprove(Map<String, dynamic> row) async {
+    final id = _rowId(row);
+    if (id.isEmpty) return;
+    final titleCtrl = TextEditingController(text: _val(row, ['file_name', 'title']));
+    final instCtrl  = TextEditingController(text: _val(row, ['institution']));
     final courseCtrl = TextEditingController(text: _val(row, ['course']));
-    final yearCtrl = TextEditingController(text: _val(row, ['year']));
+    final yearCtrl  = TextEditingController(text: _val(row, ['year']));
 
-    final confirmed = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          'Edit metadata',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
-        ),
+        title: Text('Edit & Approve', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _editField(fileNameCtrl, 'File / Paper name'),
-              _editField(institutionCtrl, 'Institution'),
-              _editField(courseCtrl, 'Course'),
-              _editField(yearCtrl, 'Year', numeric: true),
+              _field(titleCtrl,  'Paper title'),
+              _field(instCtrl,   'Institution'),
+              _field(courseCtrl, 'Course'),
+              _field(yearCtrl,   'Year', numeric: true),
             ],
           ),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
+          OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Save & Approve'),
           ),
@@ -213,140 +169,101 @@ class _AdminPapersViewState extends State<AdminPapersView> {
       ),
     );
 
-    if (confirmed != true) return;
-
-    final year = int.tryParse(yearCtrl.text.trim());
+    if (ok != true || !mounted) return;
     final changes = <String, dynamic>{
-      if (fileNameCtrl.text.trim().isNotEmpty)
-        'file_name': fileNameCtrl.text.trim(),
-      if (institutionCtrl.text.trim().isNotEmpty)
-        'institution': institutionCtrl.text.trim(),
-      if (courseCtrl.text.trim().isNotEmpty) 'course': courseCtrl.text.trim(),
-      'year': ?year,
+      if (titleCtrl.text.trim().isNotEmpty)  'file_name':   titleCtrl.text.trim(),
+      if (instCtrl.text.trim().isNotEmpty)   'institution': instCtrl.text.trim(),
+      if (courseCtrl.text.trim().isNotEmpty) 'course':      courseCtrl.text.trim(),
+      if (yearCtrl.text.trim().isNotEmpty)   'year':        int.tryParse(yearCtrl.text.trim()),
     };
-
     if (changes.isNotEmpty) {
       try {
-        await SupabaseBackend.instance.updateContributionDraft(
-          paperId: paperId,
-          changes: changes,
-        );
+        await SupabaseBackend.instance.updateContributionDraft(paperId: id, changes: changes);
       } catch (e) {
-        _showError('Metadata edit failed: $e');
+        _toast('Edit failed: $e', isError: true);
         return;
       }
     }
-
     await _approve(row);
   }
 
   Future<void> _openLink(Map<String, dynamic> row) async {
-    final url = (_val(row, ['remote_url', 'file_url', 'url']));
-    if (url.isEmpty) {
-      _showError('No file link for this paper.');
-      return;
-    }
+    final url = _val(row, ['remote_url', 'file_url', 'url']);
+    if (url.isEmpty) { _toast('No link attached to this paper.', isError: true); return; }
     final uri = Uri.tryParse(url);
-    if (uri == null) {
-      _showError('Invalid URL.');
-      return;
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _toast('Could not open link.', isError: true);
     }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) _showError('Could not open link.');
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  String _id(Map<String, dynamic> row) =>
-      (row['id'] ?? row['paper_id'] ?? row['uuid'] ?? '').toString().trim();
-
-  String _val(Map<String, dynamic> row, List<String> keys) {
-    for (final k in keys) {
-      final v = row[k];
-      if (v != null && v.toString().trim().isNotEmpty) return v.toString();
-    }
-    return '';
-  }
-
-  void _showSuccess(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  void _showError(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: Theme.of(context).colorScheme.error,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  Future<String?> _promptRejectionNote() async {
+  Future<String?> _askRejectionNote() {
     final ctrl = TextEditingController();
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          'Rejection reason',
-          style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
-        ),
+        title: Text('Rejection reason', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLines: 3,
-          decoration: const InputDecoration(
-            hintText:
-                'Optional — e.g. "Wrong year, please re-upload with correct metadata."',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: 'e.g. Wrong year, duplicate, low quality…',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
           ),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
+          OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.errorContainer),
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Reject'),
+            child: Text('Reject', style: TextStyle(color: Theme.of(ctx).colorScheme.onErrorContainer)),
           ),
         ],
       ),
     );
   }
 
-  Widget _editField(
-    TextEditingController ctrl,
-    String label, {
-    bool numeric = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: numeric ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-      ),
-    );
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  String _rowId(Map<String, dynamic> r) =>
+      (r['id'] ?? r['paper_id'] ?? r['uuid'] ?? '').toString().trim();
+
+  String _val(Map<String, dynamic> r, List<String> keys) {
+    for (final k in keys) {
+      final v = r[k];
+      if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
+    }
+    return '';
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  Widget _field(TextEditingController c, String label, {bool numeric = false}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextField(
+          controller: c,
+          keyboardType: numeric ? TextInputType.number : TextInputType.text,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+          ),
+        ),
+      );
+
+  void _toast(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    final cs = Theme.of(context).colorScheme;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+      backgroundColor: isError ? cs.errorContainer : cs.primaryContainer,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
+  }
+
+  // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -355,43 +272,39 @@ class _AdminPapersViewState extends State<AdminPapersView> {
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: cs.surface,
         surfaceTintColor: Colors.transparent,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              'Admin Dashboard',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-              ),
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: cs.primaryContainer,
+              child: Icon(Icons.admin_panel_settings_rounded, size: 18, color: cs.primary),
             ),
-            Text(
-              '${_pendingRows.length} paper${_pendingRows.length == 1 ? '' : 's'} awaiting review',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: cs.onSurfaceVariant,
-              ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Admin Reviews',
+                    style: GoogleFonts.manrope(fontSize: 17, fontWeight: FontWeight.w800)),
+                Text(
+                  _isLoading ? 'Loading…' : '${_rows.length} pending',
+                  style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                ),
+              ],
             ),
           ],
         ),
         actions: [
           IconButton(
-            onPressed: _isLoading ? null : _loadPending,
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : _load,
             icon: _isLoading
                 ? SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: cs.primary,
-                    ),
-                  )
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary))
                 : const Icon(Icons.refresh_rounded),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
         ],
       ),
       body: _buildBody(cs),
@@ -399,40 +312,27 @@ class _AdminPapersViewState extends State<AdminPapersView> {
   }
 
   Widget _buildBody(ColorScheme cs) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline_rounded, size: 48, color: cs.error),
+              Icon(Icons.cloud_off_rounded, size: 56, color: cs.error.withValues(alpha: 0.4)),
               const SizedBox(height: 16),
-              Text(
-                'Could not load pending papers',
-                style: GoogleFonts.manrope(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              Text('Could not load papers',
+                  style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _loadPending,
+              Text(_error!, textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 13, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _load,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
+                label: const Text('Try again'),
               ),
             ],
           ),
@@ -440,405 +340,403 @@ class _AdminPapersViewState extends State<AdminPapersView> {
       );
     }
 
-    if (_pendingRows.isEmpty) {
+    if (_rows.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.check_circle_rounded,
-              size: 56,
-              color: cs.primary.withOpacity(0.6),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'All caught up!',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
+            Container(
+              width: 88, height: 88,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
               ),
+              child: Icon(Icons.check_circle_outline_rounded, size: 44, color: cs.primary),
             ),
+            const SizedBox(height: 20),
+            Text('All clear!',
+                style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            Text(
-              'No papers awaiting review.',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
+            Text('No papers awaiting review.',
+                style: GoogleFonts.inter(fontSize: 14, color: cs.onSurfaceVariant)),
           ],
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: _loadPending,
-      color: cs.primary,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: _pendingRows.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (ctx, i) => _PaperCard(
-          row: _pendingRows[i],
-          isActioning: _actioningIds.contains(_id(_pendingRows[i])),
-          onApprove: () => _approve(_pendingRows[i]),
-          onReject: () => _reject(_pendingRows[i]),
-          onEdit: () => _editAndApprove(_pendingRows[i]),
-          onView: () => _openLink(_pendingRows[i]),
-          idOf: _id,
-          valOf: _val,
+      onRefresh: _load,
+      child: CustomScrollView(
+        slivers: [
+          // ── Stats strip ────────────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            sliver: SliverToBoxAdapter(
+              child: Row(
+                children: [
+                  _StatChip(
+                    icon: Icons.hourglass_top_rounded,
+                    label: 'Pending',
+                    value: '${_rows.length}',
+                    color: Colors.orange,
+                    cs: cs,
+                  ),
+                  const SizedBox(width: 10),
+                  _StatChip(
+                    icon: Icons.verified_rounded,
+                    label: 'Status',
+                    value: 'Live',
+                    color: Colors.green,
+                    cs: cs,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Cards ──────────────────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            sliver: SliverList.separated(
+              itemCount: _rows.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (ctx, i) => _PaperCard(
+                row: _rows[i],
+                isBusy: _busy.contains(_rowId(_rows[i])),
+                onApprove: () => _approve(_rows[i]),
+                onReject:  () => _reject(_rows[i]),
+                onEdit:    () => _editApprove(_rows[i]),
+                onView:    () => _openLink(_rows[i]),
+                valOf: _val,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Paper Card ───────────────────────────────────────────────────────────────
+
+class _PaperCard extends StatelessWidget {
+  const _PaperCard({
+    required this.row,
+    required this.isBusy,
+    required this.onApprove,
+    required this.onReject,
+    required this.onEdit,
+    required this.onView,
+    required this.valOf,
+  });
+
+  final Map<String, dynamic> row;
+  final bool isBusy;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+  final VoidCallback onEdit;
+  final VoidCallback onView;
+  final String Function(Map<String, dynamic>, List<String>) valOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs   = Theme.of(context).colorScheme;
+    final title   = valOf(row, ['file_name', 'title', 'name']).isNotEmpty
+        ? valOf(row, ['file_name', 'title', 'name'])
+        : 'Untitled paper';
+    final inst    = valOf(row, ['institution', 'school']);
+    final course  = valOf(row, ['course', 'subject']);
+    final year    = valOf(row, ['year']);
+    final uploader = valOf(row, ['uploader_name', 'uploader_id', 'user_id']);
+    final level   = valOf(row, ['level']);
+    final size    = valOf(row, ['file_size_kb']);
+    final hasLink = valOf(row, ['remote_url', 'file_url', 'url']).isNotEmpty;
+
+    return AnimatedOpacity(
+      opacity: isBusy ? 0.5 : 1.0,
+      duration: const Duration(milliseconds: 200),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+
+            // ── Top strip: level badge + pending badge ──────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Row(
+                children: [
+                  if (level.isNotEmpty) ...[
+                    _LevelBadge(level: level),
+                    const SizedBox(width: 8),
+                  ],
+                  const Spacer(),
+                  _Badge(
+                    label: isBusy ? 'Processing…' : 'Pending',
+                    color: isBusy ? Colors.blue : Colors.orange,
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Title + meta ────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.manrope(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      if (inst.isNotEmpty)
+                        _MetaItem(icon: Icons.school_outlined, text: inst),
+                      if (course.isNotEmpty)
+                        _MetaItem(icon: Icons.book_outlined, text: course),
+                      if (year.isNotEmpty)
+                        _MetaItem(icon: Icons.calendar_today_outlined, text: year),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline_rounded, size: 13, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          uploader.isNotEmpty ? uploader : 'Unknown uploader',
+                          style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (size.isNotEmpty) ...[
+                        Icon(Icons.insert_drive_file_outlined, size: 12, color: cs.onSurfaceVariant),
+                        const SizedBox(width: 3),
+                        Text(
+                          '$size KB',
+                          style: GoogleFonts.inter(fontSize: 11, color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+            Divider(height: 1, indent: 16, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.2)),
+
+            // ── Actions ─────────────────────────────────────────────────
+            if (isBusy)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Center(child: SizedBox(width: 24, height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+                child: Column(
+                  children: [
+                    // Row 1: view + edit
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: hasLink ? onView : null,
+                            icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                            label: const Text('View'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onEdit,
+                            icon: const Icon(Icons.edit_outlined, size: 15),
+                            label: const Text('Edit & Approve'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Row 2: reject + approve
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onReject,
+                            icon: Icon(Icons.cancel_outlined, size: 15, color: cs.error),
+                            label: Text('Reject', style: TextStyle(color: cs.error)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              side: BorderSide(color: cs.error.withValues(alpha: 0.4)),
+                              textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: onApprove,
+                            icon: const Icon(Icons.check_circle_outline_rounded, size: 15),
+                            label: const Text('Approve'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ─── Paper card widget ────────────────────────────────────────────────────────
+// ─── Supporting widgets ───────────────────────────────────────────────────────
 
-class _PaperCard extends StatelessWidget {
-  final Map<String, dynamic> row;
-  final bool isActioning;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
-  final VoidCallback onEdit;
-  final VoidCallback onView;
-  final String Function(Map<String, dynamic>) idOf;
-  final String Function(Map<String, dynamic>, List<String>) valOf;
-
-  const _PaperCard({
-    required this.row,
-    required this.isActioning,
-    required this.onApprove,
-    required this.onReject,
-    required this.onEdit,
-    required this.onView,
-    required this.idOf,
-    required this.valOf,
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.cs,
   });
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8))),
+                Text(value,  style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w800, color: color, height: 1.1)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LevelBadge extends StatelessWidget {
+  const _LevelBadge({required this.level});
+  final String level;
+
+  static Color _color(String l) {
+    switch (l.toLowerCase()) {
+      case 'university':   return const Color(0xFF003F98);
+      case 'high_school':  return const Color(0xFF6B4226);
+      case 'competitive':  return const Color(0xFF7B2D8B);
+      case 'professional': return const Color(0xFF1B6D24);
+      default:             return Colors.blueGrey;
+    }
+  }
+  static String _label(String l) => l.replaceAll('_', ' ').toUpperCase();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _color(level);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: c.withValues(alpha: 0.25)),
+      ),
+      child: Text(_label(level), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: c)),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  const _MetaItem({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final paperId = idOf(row);
-
-    final title = valOf(row, ['file_name', 'title', 'name']).isNotEmpty
-        ? valOf(row, ['file_name', 'title', 'name'])
-        : 'Untitled paper';
-    final institution = valOf(row, ['institution', 'school']).isNotEmpty
-        ? valOf(row, ['institution', 'school'])
-        : 'Unknown institution';
-    final course = valOf(row, ['course', 'subject', 'level']).isNotEmpty
-        ? valOf(row, ['course', 'subject', 'level'])
-        : 'Unknown course';
-    final year = valOf(row, ['year']);
-    final level = valOf(row, ['level']);
-
-    // Uploader name comes from the get_pending_papers() RPC join
-    final uploaderName = valOf(row, [
-      'uploader_name',
-      'uploader_id',
-      'user_id',
-    ]);
-    final fileSize = valOf(row, ['file_size_kb']);
-    final fileType = valOf(row, ['file_type']);
-
-    final hasLink = valOf(row, ['remote_url', 'file_url', 'url']).isNotEmpty;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ─────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-            child: Row(
-              children: [
-                // Level badge
-                if (level.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _levelColor(level).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      _levelLabel(level),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _levelColor(level),
-                      ),
-                    ),
-                  ),
-                const Spacer(),
-                // Pending badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFB300).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Pending',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFB07800),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Content ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.manrope(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    institution,
-                    course,
-                    if (year.isNotEmpty) year,
-                  ].where((s) => s.isNotEmpty).join(' · '),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.person_outline_rounded,
-                      size: 13,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        uploaderName.isNotEmpty
-                            ? uploaderName
-                            : 'Unknown uploader',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: cs.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (fileSize.isNotEmpty) ...[
-                      Icon(
-                        Icons.insert_drive_file_outlined,
-                        size: 12,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '$fileSize KB',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    if (fileType.isNotEmpty)
-                      Text(
-                        fileType.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary.withOpacity(0.7),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-          Divider(height: 1, color: cs.outlineVariant.withOpacity(0.2)),
-
-          // ── Actions ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: isActioning
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: cs.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Processing…',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      // View + Edit row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: hasLink ? onView : null,
-                              icon: const Icon(
-                                Icons.visibility_outlined,
-                                size: 16,
-                              ),
-                              label: const Text('View file'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                textStyle: GoogleFonts.inter(fontSize: 13),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: onEdit,
-                              icon: const Icon(Icons.edit_outlined, size: 16),
-                              label: const Text('Edit & approve'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                textStyle: GoogleFonts.inter(fontSize: 13),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Reject + Approve row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: paperId.isEmpty ? null : onReject,
-                              icon: Icon(
-                                Icons.close_rounded,
-                                size: 16,
-                                color: cs.error,
-                              ),
-                              label: Text(
-                                'Reject',
-                                style: TextStyle(color: cs.error),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                side: BorderSide(
-                                  color: cs.error.withOpacity(0.4),
-                                ),
-                                textStyle: GoogleFonts.inter(fontSize: 13),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: paperId.isEmpty ? null : onApprove,
-                              icon: const Icon(Icons.check_rounded, size: 16),
-                              label: const Text('Approve'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                backgroundColor: cs.primary,
-                                foregroundColor: Colors.white,
-                                textStyle: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: cs.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(text, style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+      ],
     );
-  }
-
-  Color _levelColor(String level) {
-    switch (level.toLowerCase()) {
-      case 'university':
-        return const Color(0xFF003F98);
-      case 'high_school':
-        return const Color(0xFF6B4226);
-      case 'competitive':
-        return const Color(0xFF7B2D8B);
-      case 'professional':
-        return const Color(0xFF1B6D24);
-      default:
-        return const Color(0xFF434653);
-    }
-  }
-
-  String _levelLabel(String level) {
-    switch (level.toLowerCase()) {
-      case 'university':
-        return 'University';
-      case 'high_school':
-        return 'High School';
-      case 'competitive':
-        return 'Competitive';
-      case 'professional':
-        return 'Professional';
-      default:
-        return level;
-    }
   }
 }

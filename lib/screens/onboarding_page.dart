@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'auth_page.dart';
 import '../data/app_state.dart';
 
 class OnboardingPage extends StatefulWidget {
@@ -12,7 +10,8 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStateMixin {
+class _OnboardingPageState extends State<OnboardingPage>
+    with TickerProviderStateMixin {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
 
@@ -23,17 +22,20 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
   final List<Map<String, String>> _pages = [
     {
       'title': 'Find Any Past Paper',
-      'body': 'Access thousands of past exams from premium universities and institutions securely. Pass your next exam with excellence.',
+      'body':
+          'Access thousands of past exams from premium universities and institutions securely. Pass your next exam with excellence.',
       'icon': 'search',
     },
     {
       'title': 'Upload & Earn Points',
-      'body': 'Contribute to the academic community by sharing exams. Earn points on every verified upload and unlock premium features.',
+      'body':
+          'Contribute to the academic community by sharing exams. Earn points on every verified upload and unlock premium features.',
       'icon': 'upload',
     },
     {
       'title': 'Rank & Rewards',
-      'body': 'Ascend the tiers from Bronze to Diamond. Get recognized as a top contributor and redeem your hard-earned points.',
+      'body':
+          'Ascend the tiers from Bronze to Diamond. Get recognized as a top contributor and redeem your hard-earned points.',
       'icon': 'trophy',
     },
   ];
@@ -51,13 +53,13 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
       curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.4, 1.0, curve: Curves.easeOutCubic),
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _mainController,
+            curve: const Interval(0.4, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _mainController.forward();
   }
@@ -71,10 +73,13 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
 
   IconData _getIcon(String key) {
     switch (key) {
-      case 'upload': return Icons.cloud_upload_rounded;
-      case 'trophy': return Icons.emoji_events_rounded;
+      case 'upload':
+        return Icons.cloud_upload_rounded;
+      case 'trophy':
+        return Icons.emoji_events_rounded;
       case 'search':
-      default: return Icons.travel_explore_rounded;
+      default:
+        return Icons.travel_explore_rounded;
     }
   }
 
@@ -153,7 +158,9 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                               height: 200,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: cs.primaryContainer.withValues(alpha: isDark ? 0.2 : 0.1),
+                                color: cs.primaryContainer.withValues(
+                                  alpha: isDark ? 0.2 : 0.1,
+                                ),
                               ),
                               child: Center(
                                 child: Container(
@@ -168,7 +175,9 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: cs.primary.withValues(alpha: 0.3),
+                                        color: cs.primary.withValues(
+                                          alpha: 0.3,
+                                        ),
                                         blurRadius: 20,
                                         offset: const Offset(0, 10),
                                       ),
@@ -225,7 +234,9 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                         width: _currentIndex == index ? 32 : 12,
                         height: 6,
                         decoration: BoxDecoration(
-                          color: _currentIndex == index ? cs.primary : cs.outlineVariant.withValues(alpha: 0.3),
+                          color: _currentIndex == index
+                              ? cs.primary
+                              : cs.outlineVariant.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
@@ -240,8 +251,13 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                             style: ElevatedButton.styleFrom(
                               backgroundColor: cs.primary,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                               elevation: 4,
                             ),
                             child: Text(
@@ -289,4 +305,3 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
     );
   }
 }
-

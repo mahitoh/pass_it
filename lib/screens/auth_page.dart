@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -84,12 +87,38 @@ class _AuthPageState extends State<AuthPage> {
           });
         }
       } on AuthException catch (error) {
+        String msg = error.message;
+        if (msg.toLowerCase().contains('invalid login') || msg.toLowerCase().contains('invalid credentials')) {
+          msg = 'Invalid email or password. Please try again.';
+        } else if (msg.toLowerCase().contains('email not confirmed')) {
+          msg = 'Please confirm your email first. Check your inbox.';
+        } else if (msg.toLowerCase().contains('user already registered')) {
+          msg = 'This email is already registered. Try logging in.';
+        } else if (msg.toLowerCase().contains('rate limit')) {
+          msg = 'Too many attempts. Please wait a moment and try again.';
+        }
         setState(() {
-          _statusMessage = error.message;
+          _statusMessage = msg;
+        });
+      } on SocketException {
+        setState(() {
+          _statusMessage = 'No internet connection. Please check your network and try again.';
+        });
+      } on TimeoutException {
+        setState(() {
+          _statusMessage = 'Connection timed out. Please check your internet and try again.';
         });
       } catch (error) {
+        String msg = error.toString();
+        if (msg.toLowerCase().contains('socket') || msg.toLowerCase().contains('network')) {
+          msg = 'No internet connection. Please check your network and try again.';
+        } else if (msg.toLowerCase().contains('dns') || msg.toLowerCase().contains('host')) {
+          msg = 'Could not reach the server. Please check your internet connection.';
+        } else {
+          msg = 'Something went wrong. Please try again.';
+        }
         setState(() {
-          _statusMessage = 'Authentication failed: $error';
+          _statusMessage = msg;
         });
       } finally {
         if (mounted) {
@@ -124,12 +153,32 @@ class _AuthPageState extends State<AuthPage> {
         _statusMessage = 'Password reset link sent to $email';
       });
     } on AuthException catch (error) {
+      String msg = error.message;
+      if (msg.toLowerCase().contains('user not found') || msg.toLowerCase().contains('not found')) {
+        msg = 'No account found with this email.';
+      } else if (msg.toLowerCase().contains('rate limit')) {
+        msg = 'Too many attempts. Please wait a moment and try again.';
+      }
       setState(() {
-        _statusMessage = error.message;
+        _statusMessage = msg;
+      });
+    } on SocketException {
+      setState(() {
+        _statusMessage = 'No internet connection. Please check your network and try again.';
+      });
+    } on TimeoutException {
+      setState(() {
+        _statusMessage = 'Connection timed out. Please check your internet and try again.';
       });
     } catch (error) {
+      String msg = error.toString();
+      if (msg.toLowerCase().contains('socket') || msg.toLowerCase().contains('network')) {
+        msg = 'No internet connection. Please check your network and try again.';
+      } else {
+        msg = 'Could not send reset email. Please try again.';
+      }
       setState(() {
-        _statusMessage = 'Could not send reset email: $error';
+        _statusMessage = msg;
       });
     } finally {
       if (mounted) {

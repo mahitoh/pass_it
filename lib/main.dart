@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 
@@ -96,9 +95,12 @@ class _AuthGateState extends State<_AuthGate> {
       setState(() => _isHydrating = true);
     }
 
+    final backend = SupabaseBackend.instance;
+
+    // Fast path: if no session, clear and return
     if (_session == null) {
       AppState.instance.clearForSignedOut();
-      // Ensure onboarding is loaded even if logged out
+      // Show cached data immediately if available
       await AppState.instance.refreshData();
       if (mounted) {
         setState(() => _isHydrating = false);
@@ -106,9 +108,20 @@ class _AuthGateState extends State<_AuthGate> {
       return;
     }
 
-    await AppState.instance
-        .hydrateFromSupabase(SupabaseBackend.instance)
-        .timeout(const Duration(seconds: 12), onTimeout: () {});
+    // Only wait for hydration if backend is ready
+    // Otherwise use cached data
+    if (backend.isReady) {
+      try {
+        await AppState.instance
+            .hydrateFromSupabase(backend)
+            .timeout(const Duration(seconds: 8), onTimeout: () {});
+      } catch (_) {
+        // Use cached data on failure
+      }
+    } else {
+      // Backend not ready - use cached data
+      await AppState.instance.refreshData();
+    }
 
     if (mounted) {
       AppState.instance.onTierUp = (newTier) {
@@ -130,10 +143,14 @@ class _AuthGateState extends State<_AuthGate> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.15),
+                color: Colors.amber.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.celebration_rounded, size: 48, color: Colors.amber),
+              child: const Icon(
+                Icons.celebration_rounded,
+                size: 48,
+                color: Colors.amber,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
@@ -146,18 +163,12 @@ class _AuthGateState extends State<_AuthGate> {
             const SizedBox(height: 8),
             Text(
               'You\'ve reached $newTier tier!',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
             Text(
               'Keep uploading to unlock more rewards!',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -191,7 +202,7 @@ class _AuthGateState extends State<_AuthGate> {
   @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
-    final cs = Theme.of(context).colorScheme;
+
 
     if (_isHydrating) {
       return Scaffold(
@@ -200,10 +211,7 @@ class _AuthGateState extends State<_AuthGate> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset(
-                'assets/images/logo.png',
-                height: 100,
-              ),
+              Image.asset('assets/images/logo.png', height: 100),
               const SizedBox(height: 32),
               const CircularProgressIndicator(color: Colors.white),
             ],

@@ -109,7 +109,6 @@ class _BookmarksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: bookmarked.length,

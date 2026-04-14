@@ -389,10 +389,10 @@ class _SortChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? cs.primary.withOpacity(0.1) : Colors.transparent,
+          color: selected ? cs.primary.withValues(alpha: 0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: selected ? cs.primary : cs.outlineVariant.withOpacity(0.3),
+            color: selected ? cs.primary : cs.outlineVariant.withValues(alpha: 0.3),
           ),
         ),
         child: Text(
@@ -449,7 +449,7 @@ class _PaperResultCard extends StatelessWidget {
               width: 44,
               height: 50,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.08),
+                color: color.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -502,7 +502,7 @@ class _PaperResultCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
+                          color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
@@ -535,7 +535,7 @@ class _PaperResultCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: cs.secondaryContainer.withOpacity(0.25),
+                          color: cs.secondaryContainer.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(

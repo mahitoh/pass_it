@@ -94,9 +94,9 @@ class _PointsHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: tier.color.withOpacity(0.25),
+                color: tier.color.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: tier.color.withOpacity(0.5)),
+                border: Border.all(color: tier.color.withValues(alpha: 0.5)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -119,7 +119,7 @@ class _PointsHeader extends StatelessWidget {
             Text(
               'Your Balance',
               style: GoogleFonts.inter(
-                color: Colors.white.withOpacity(0.75),
+                color: Colors.white.withValues(alpha: 0.75),
                 fontSize: 13,
                 letterSpacing: 0.5,
               ),
@@ -137,7 +137,7 @@ class _PointsHeader extends StatelessWidget {
             Text(
               'academic points',
               style: GoogleFonts.inter(
-                color: Colors.white.withOpacity(0.85),
+                color: Colors.white.withValues(alpha: 0.85),
                 fontSize: 15,
               ),
             ),
@@ -149,7 +149,7 @@ class _PointsHeader extends StatelessWidget {
                     'Progress to ${nextTier!.name}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                     ),
                   ),
                   const Spacer(),
@@ -169,7 +169,7 @@ class _PointsHeader extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   minHeight: 8,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               ),
@@ -180,7 +180,7 @@ class _PointsHeader extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -234,7 +234,7 @@ class _TierRoadmap extends StatelessWidget {
           decoration: BoxDecoration(
             color: cs.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
           ),
           child: Column(
             children: _tiers.map((t) {
@@ -255,7 +255,7 @@ class _TierRoadmap extends StatelessWidget {
                           height: 36,
                           decoration: BoxDecoration(
                             color: isAchieved
-                                ? t.color.withOpacity(0.15)
+                                ? t.color.withValues(alpha: 0.15)
                                 : cs.surfaceContainerHigh,
                             shape: BoxShape.circle,
                           ),
@@ -290,7 +290,7 @@ class _TierRoadmap extends StatelessWidget {
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: cs.primary.withOpacity(0.12),
+                                        color: cs.primary.withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(5),
                                       ),
                                       child: Text(
@@ -333,7 +333,7 @@ class _TierRoadmap extends StatelessWidget {
                         else
                           Icon(
                             Icons.lock_rounded,
-                            color: cs.onSurfaceVariant.withOpacity(0.4),
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.4),
                             size: 18,
                           ),
                       ],
@@ -342,7 +342,7 @@ class _TierRoadmap extends StatelessWidget {
                   if (!isLast)
                     Divider(
                       height: 1,
-                      color: cs.outlineVariant.withOpacity(0.15),
+                      color: cs.outlineVariant.withValues(alpha: 0.15),
                       indent: 16,
                       endIndent: 16,
                     ),
@@ -383,7 +383,7 @@ class _HowToEarnSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: cs.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
           ),
           child: Column(
             children: items.asMap().entries.map((entry) {
@@ -400,7 +400,7 @@ class _HowToEarnSection extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: cs.primary.withOpacity(0.1),
+                            color: cs.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -431,7 +431,7 @@ class _HowToEarnSection extends StatelessWidget {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
+                                      color: Colors.green.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -462,7 +462,7 @@ class _HowToEarnSection extends StatelessWidget {
                   if (!isLast)
                     Divider(
                       height: 1,
-                      color: cs.outlineVariant.withOpacity(0.15),
+                      color: cs.outlineVariant.withValues(alpha: 0.15),
                       indent: 16,
                       endIndent: 16,
                     ),
@@ -516,7 +516,7 @@ class _LeaderboardSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: cs.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
           ),
           child: Column(
             children: appState.leaderboard.asMap().entries.map((e) {
@@ -533,7 +533,7 @@ class _LeaderboardSection extends StatelessWidget {
                   if (!isLast)
                     Divider(
                       height: 1,
-                      color: cs.outlineVariant.withOpacity(0.12),
+                      color: cs.outlineVariant.withValues(alpha: 0.12),
                       indent: 16,
                       endIndent: 16,
                     ),
@@ -592,7 +592,7 @@ class _LeaderboardRow extends StatelessWidget {
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 17,
-            backgroundColor: cs.primary.withOpacity(0.1),
+            backgroundColor: cs.primary.withValues(alpha: 0.1),
             child: Text(
               name.isNotEmpty ? name[0].toUpperCase() : '?',
               style: GoogleFonts.manrope(
@@ -617,7 +617,7 @@ class _LeaderboardRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: isTop3
-                  ? _medalColor().withOpacity(0.12)
+                  ? _medalColor().withValues(alpha: 0.12)
                   : cs.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(20),
             ),
@@ -686,7 +686,7 @@ class _RewardCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -694,7 +694,7 @@ class _RewardCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: cs.primary.withOpacity(0.08),
+              color: cs.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(reward.icon, color: cs.primary, size: 22),
@@ -730,7 +730,7 @@ class _RewardCard extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: cs.secondaryContainer.withOpacity(0.2),
+                    color: cs.secondaryContainer.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(

@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:async';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_state.dart';
@@ -39,6 +41,66 @@ class UploadProgressSnapshot {
   final String? remoteRecordId;
 }
 
+class _UploadProgressTicker {
+  _UploadProgressTicker({
+    required this.initialProgress,
+    required this.capProgress,
+    required this.fileSizeBytes,
+    required this.onUpdate,
+  }) : _currentProgress = initialProgress;
+
+  final double initialProgress;
+  final double capProgress;
+  final int fileSizeBytes;
+  final void Function(double) onUpdate;
+
+  Timer? _timer;
+  double _currentProgress;
+  DateTime? _startedAt;
+
+  static const int _assumedBytesPerSecond = 320 * 1024;
+
+  void start() {
+    _timer?.cancel();
+    _startedAt = DateTime.now();
+
+    final estimatedSeconds = (fileSizeBytes / _assumedBytesPerSecond)
+        .clamp(12, 240)
+        .toDouble();
+
+    _timer = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      final startedAt = _startedAt;
+      if (startedAt == null) return;
+
+      final elapsedSeconds =
+          DateTime.now().difference(startedAt).inMilliseconds / 1000.0;
+
+      // Main phase: linear motion based on estimated duration.
+      final t = (elapsedSeconds / estimatedSeconds).clamp(0.0, 1.0);
+      final linear = initialProgress + ((capProgress - initialProgress) * t);
+
+      // If estimated time exceeded, slowly creep forward instead of freezing.
+      if (t >= 1.0 && _currentProgress < capProgress - 0.001) {
+        final remaining = capProgress - _currentProgress;
+        final creep = (remaining * 0.08).clamp(0.0015, 0.006).toDouble();
+        _currentProgress = (_currentProgress + creep).clamp(
+          initialProgress,
+          capProgress,
+        );
+      } else {
+        _currentProgress = linear.clamp(initialProgress, capProgress);
+      }
+
+      onUpdate(_currentProgress);
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+  }
+}
+
 class UploadPipeline {
   Future<void> submit({
     required UploadSubmission submission,
@@ -75,6 +137,24 @@ class UploadPipeline {
       ),
     );
 
+    final sourceSizeBytes = await sourceFile.length();
+
+    final uploadProgressTicker = _UploadProgressTicker(
+      initialProgress: 0.55,
+      capProgress: 0.93,
+      fileSizeBytes: sourceSizeBytes,
+      onUpdate: (progress) {
+        onProgress(
+          UploadProgressSnapshot(
+            progress: progress,
+            stage: 'Uploading to Supabase Storage',
+            localPath: storedPath,
+          ),
+        );
+      },
+    );
+    uploadProgressTicker.start();
+
     if (!supabaseBackend.isReady) {
       throw StateError(
         'Supabase is not ready. Please verify URL/key and initialization.',
@@ -96,6 +176,7 @@ class UploadPipeline {
         file: sourceFile,
         fileName: _sanitizeFileName(submission.fileName),
       );
+      uploadProgressTicker.stop();
       remoteUrl = uploadResult.publicUrl;
 
       onProgress(
@@ -107,26 +188,16 @@ class UploadPipeline {
         ),
       );
 
-      remoteRecordId = await supabaseBackend.syncContribution(
-        data: {
-          'uploader_id': currentUser.id,
-          'status': 'pending',
-          'level': _dbLevelForSelection(submission.level),
-          'institution': submission.institution,
-          'faculty': null,
-          'series': null,
-          'course': submission.course,
-          'paper_type': _paperTypeForLevel(submission.level),
-          'year': submission.year,
-          'file_name': submission.fileName,
-          'storage_path': uploadResult.storagePath,
-          'remote_url': remoteUrl,
-          'file_type': _fileTypeForName(submission.fileName),
-          'file_size_kb': (await sourceFile.length() / 1024).ceil(),
-          'downloads': 0,
-        },
+      remoteRecordId = await _syncContributionWithLevelFallback(
+        supabaseBackend: supabaseBackend,
+        currentUserId: currentUser.id,
+        submission: submission,
+        storagePath: uploadResult.storagePath,
+        remoteUrl: remoteUrl,
+        sourceFile: sourceFile,
       );
     } catch (error) {
+      uploadProgressTicker.stop();
       onProgress(
         UploadProgressSnapshot(
           progress: 0.82,
@@ -173,6 +244,12 @@ class UploadPipeline {
   }
 
   Future<String> _storeLocally(File sourceFile, String fileName) async {
+    // For large files, avoid the expensive local duplicate copy before upload.
+    final bytes = await sourceFile.length();
+    if (bytes >= 8 * 1024 * 1024) {
+      return sourceFile.path;
+    }
+
     final directory = await getApplicationSupportDirectory();
     final archiveDirectory = Directory(
       '${directory.path}${Platform.pathSeparator}pass_it_uploads',
@@ -225,6 +302,72 @@ class UploadPipeline {
       default:
         return level.trim().toLowerCase().replaceAll(' ', '_');
     }
+  }
+
+  Future<String> _syncContributionWithLevelFallback({
+    required SupabaseBackend supabaseBackend,
+    required String currentUserId,
+    required UploadSubmission submission,
+    required String storagePath,
+    required String remoteUrl,
+    required File sourceFile,
+  }) async {
+    final fileSizeKb = (await sourceFile.length() / 1024).ceil();
+    final normalizedLevel = _dbLevelForSelection(submission.level);
+    final legacyLevel = _paperTypeForLevel(submission.level);
+    final candidateLevels = <String>{
+      submission.level.trim(),
+      normalizedLevel,
+      if (submission.level.trim().toLowerCase() == 'high school') 'secondary',
+      if (submission.level.trim().toLowerCase() == 'professional') 'secondary',
+      legacyLevel,
+    }.where((value) => value.isNotEmpty).toList(growable: false);
+
+    PostgrestException? lastPostgrestException;
+    Object? lastError;
+
+    for (final level in candidateLevels) {
+      try {
+        return await supabaseBackend.syncContribution(
+          data: {
+            'uploader_id': currentUserId,
+            'status': 'pending',
+            'level': level,
+            'institution': submission.institution,
+            'faculty': null,
+            'series': null,
+            'course': submission.course,
+            'paper_type': _paperTypeForLevel(submission.level),
+            'year': submission.year,
+            'file_name': submission.fileName,
+            'storage_path': storagePath,
+            'remote_url': remoteUrl,
+            'file_type': _fileTypeForName(submission.fileName),
+            'file_size_kb': fileSizeKb,
+            'downloads': 0,
+          },
+        );
+      } on PostgrestException catch (error) {
+        lastPostgrestException = error;
+        lastError = error;
+        if (error.code != '23514' ||
+            !error.message.contains('paper_uploads_level_check')) {
+          rethrow;
+        }
+      } catch (error) {
+        lastError = error;
+        rethrow;
+      }
+    }
+
+    if (lastPostgrestException != null) {
+      throw Exception(
+        'Supabase save failed: level value "${submission.level}" does not match the database constraint. '
+        'Tried ${candidateLevels.join(' and ')}. Original error: ${lastPostgrestException.message}',
+      );
+    }
+
+    throw Exception('Supabase save failed: $lastError');
   }
 
   String _fileTypeForName(String fileName) {

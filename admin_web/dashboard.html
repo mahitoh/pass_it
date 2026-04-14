@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PassIt — Admin Analytics</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0a0a0b;
+            --surface: #111113;
+            --surface2: #18181b;
+            --surface3: #222226;
+            --border: rgba(255, 255, 255, 0.07);
+            --border2: rgba(255, 255, 255, 0.12);
+            --text: #f4f4f5;
+            --muted: #71717a;
+            --muted2: #52525b;
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.12);
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.12);
+            --amber: #f59e0b;
+            --amber-dim: rgba(245, 158, 11, 0.12);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.12);
+            --font: 'DM Sans', sans-serif;
+            --mono: 'DM Mono', monospace;
+            --sidebar: 220px;
+            --radius: 10px;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            height: 100%;
+            display: flex;
+            font-size: 14px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: var(--sidebar);
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 20;
+            overflow: hidden;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 22px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-mark {
+            width: 32px;
+            height: 32px;
+            background: var(--blue);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .logo-text {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.3px;
+        }
+
+        .logo-sub {
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            line-height: 1;
+            margin-top: 1px;
+        }
+
+        .sidebar-nav {
+            padding: 16px 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-section-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--muted2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 8px 8px 4px;
+            margin-top: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 7px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            text-decoration: none;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item:hover {
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        .nav-item svg {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .sidebar-footer {
+            padding: 14px 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 7px;
+        }
+
+        .user-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            background: var(--blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .user-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .user-role {
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        /* ── Main ── */
+        .main {
+            margin-left: var(--sidebar);
+            flex: 1;
+            overflow-y: auto;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .topbar-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .topbar-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 7px;
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: var(--font);
+            transition: background 0.15s;
+        }
+
+        .refresh-btn:hover {
+            background: var(--surface3);
+        }
+
+        .refresh-btn svg {
+            width: 13px;
+            height: 13px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .refresh-btn.spinning svg {
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--green);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .live-label {
+            font-size: 11px;
+            color: var(--green);
+            font-weight: 500;
+        }
+
+        .content {
+            padding: 28px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ── Stat cards ── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border2);
+            transform: translateY(-2px);
+        }
+
+        .stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+
+        .stat-icon svg {
+            width: 17px;
+            height: 17px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .stat-icon.blue {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        .stat-icon.green {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .stat-icon.amber {
+            background: var(--amber-dim);
+            color: var(--amber);
+        }
+
+        .stat-icon.red {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .stat-badge.up {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .stat-badge.warn {
+            background: var(--amber-dim);
+            color: var(--amber);
+        }
+
+        /* ── Charts row ── */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1.7fr 1fr;
+            gap: 16px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .panel-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .panel-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 20px;
+            background: var(--blue-dim);
+            color: var(--blue);
+            font-family: var(--mono);
+        }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        .chart-wrap {
+            height: 200px;
+            position: relative;
+        }
+
+        /* Category breakdown */
+        .cat-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 4px 0;
+        }
+
+        .cat-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .cat-label {
+            font-size: 12px;
+            color: var(--muted);
+            width: 90px;
+            flex-shrink: 0;
+        }
+
+        .cat-bar-wrap {
+            flex: 1;
+            height: 6px;
+            background: var(--surface3);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .cat-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .cat-count {
+            font-size: 12px;
+            font-family: var(--mono);
+            color: var(--text);
+            font-weight: 500;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        /* ── Tables ── */
+        .table-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .table-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 7px 12px;
+            width: 220px;
+        }
+
+        .table-search svg {
+            width: 13px;
+            height: 13px;
+            stroke: var(--muted);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .table-search input {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 12px;
+            width: 100%;
+        }
+
+        .table-search input::placeholder {
+            color: var(--muted2);
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead tr {
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 13px 20px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover td {
+            background: var(--surface2);
+        }
+
+        tbody tr {
+            transition: background 0.1s;
+        }
+
+        .td-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .td-email {
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        .td-date {
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .td-mono {
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        .td-num {
+            font-family: var(--mono);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 9px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .pill-approved {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .pill-pending {
+            background: var(--amber-dim);
+            color: var(--amber);
+        }
+
+        .pill-rejected {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        .pill-admin {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        .pill-student {
+            background: var(--surface3);
+            color: var(--muted);
+        }
+
+        .pill-verified {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .level-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: var(--surface3);
+            color: var(--muted);
+            font-family: var(--mono);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .empty-row td {
+            text-align: center;
+            color: var(--muted2);
+            padding: 40px 20px;
+            font-size: 13px;
+        }
+
+        /* Skeleton loading */
+        .skeleton {
+            background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.2s infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes shimmer {
+            to {
+                background-position: -200% 0;
+            }
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            background: var(--surface2);
+            padding: 3px;
+            border-radius: 8px;
+        }
+
+        .tab {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.15s;
+            border: none;
+            background: none;
+            font-family: var(--font);
+        }
+
+        .tab.active {
+            background: var(--surface);
+            color: var(--text);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .page-info {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .page-btns {
+            display: flex;
+            gap: 4px;
+        }
+
+        .page-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 12px;
+            font-family: var(--font);
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: var(--surface3);
+            color: var(--text);
+        }
+
+        .page-btn.active {
+            background: var(--blue);
+            border-color: var(--blue);
+            color: #fff;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        .page-btn svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 10px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            z-index: 100;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-width: 320px;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-icon {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toast-icon.ok {
+            color: var(--green);
+        }
+
+        .toast-icon.err {
+            color: var(--red);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--surface3);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-mark">P</div>
+            <div>
+                <div class="logo-text">PassIt</div>
+                <div class="logo-sub">Admin Analytics</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Overview</div>
+            <button class="nav-item active" onclick="showSection('dashboard')">
+                <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Dashboard
+            </button>
+
+            <div class="nav-section-label">Data</div>
+            <button class="nav-item" onclick="showSection('users')">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Users
+            </button>
+            <button class="nav-item" onclick="showSection('papers')">
+                <svg viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                </svg>
+                Papers
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="user-avatar">A</div>
+                <div>
+                    <div class="user-name">Administrator</div>
+                    <div class="user-role">Full access</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+        <div class="topbar">
+            <div>
+                <div class="topbar-title" id="page-title">Dashboard</div>
+                <div class="topbar-sub" id="page-sub">Overview of all PassIt activity</div>
+            </div>
+            <div class="topbar-right">
+                <div class="status-dot"></div>
+                <span class="live-label">Live</span>
+                <button class="refresh-btn" id="refresh-btn" onclick="refreshAll()">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="content">
+
+            <!-- DASHBOARD SECTION -->
+            <div id="section-dashboard">
+
+                <!-- Stat cards -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="s-users">—</div>
+                        <div class="stat-label">Total Users</div>
+                        <div class="stat-badge up" id="s-users-badge">Loading…</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="s-papers">—</div>
+                        <div class="stat-label">Total Papers</div>
+                        <div class="stat-badge up" id="s-approved-badge">Loading…</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon amber">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="s-pending">—</div>
+                        <div class="stat-label">Pending Review</div>
+                        <div class="stat-badge warn" id="s-pending-badge">Awaiting approval</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="s-downloads">—</div>
+                        <div class="stat-label">Total Downloads</div>
+                        <div class="stat-badge up">All papers combined</div>
+                    </div>
+                </div>
+
+                <!-- Charts row -->
+                <div class="charts-row">
+                    <!-- Uploads over time -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <div class="panel-title">Paper Uploads</div>
+                                <div class="panel-sub">Uploads per day — last 30 days</div>
+                            </div>
+                            <span class="panel-tag">30D</span>
+                        </div>
+                        <div class="panel-body">
+                            <div class="chart-wrap">
+                                <canvas id="uploads-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Papers by level -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <div class="panel-title">Papers by Level</div>
+                                <div class="panel-sub">Distribution across categories</div>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="cat-list" id="level-breakdown">
+                                <div style="color:var(--muted);font-size:12px">Loading…</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent signups (mini) -->
+                <div class="table-panel">
+                    <div class="table-header-row">
+                        <div>
+                            <div class="panel-title">Recent Signups</div>
+                            <div class="panel-sub" style="font-size:11px;color:var(--muted);margin-top:2px">Last 5 users
+                                who joined</div>
+                        </div>
+                        <button class="refresh-btn" onclick="showSection('users')">
+                            View all users
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Points</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-users-body">
+                                <tr>
+                                    <td colspan="5" style="text-align:center;color:var(--muted2);padding:32px">Loading…
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div><!-- /dashboard -->
+
+            <!-- USERS SECTION -->
+            <div id="section-users" style="display:none">
+                <div class="table-panel">
+                    <div class="table-header-row">
+                        <div>
+                            <div class="panel-title">All Users</div>
+                            <div class="panel-sub" style="font-size:11px;color:var(--muted);margin-top:2px"
+                                id="users-count-label">Loading…</div>
+                        </div>
+                        <div class="table-search">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <input type="text" id="user-search" placeholder="Search by name or email…"
+                                oninput="filterUsers()">
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Institution</th>
+                                    <th>Role</th>
+                                    <th>Points</th>
+                                    <th>Verified</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-body">
+                                <tr>
+                                    <td colspan="8" style="text-align:center;color:var(--muted2);padding:40px">Loading…
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination">
+                        <div class="page-info" id="users-page-info">—</div>
+                        <div class="page-btns" id="users-page-btns"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAPERS SECTION -->
+            <div id="section-papers" style="display:none">
+                <div class="table-panel">
+                    <div class="table-header-row">
+                        <div style="display:flex;align-items:center;gap:16px">
+                            <div>
+                                <div class="panel-title">All Papers</div>
+                                <div class="panel-sub" style="font-size:11px;color:var(--muted);margin-top:2px"
+                                    id="papers-count-label">Loading…</div>
+                            </div>
+                            <div class="tabs" id="status-tabs">
+                                <button class="tab active" onclick="filterPaperStatus('all',this)">All</button>
+                                <button class="tab" onclick="filterPaperStatus('approved',this)">Approved</button>
+                                <button class="tab" onclick="filterPaperStatus('pending',this)">Pending</button>
+                                <button class="tab" onclick="filterPaperStatus('rejected',this)">Rejected</button>
+                            </div>
+                        </div>
+                        <div class="table-search">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <input type="text" id="paper-search" placeholder="Search papers…" oninput="filterPapers()">
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Paper / File</th>
+                                    <th>Institution</th>
+                                    <th>Level</th>
+                                    <th>Status</th>
+                                    <th>Uploader</th>
+                                    <th>Downloads</th>
+                                    <th>Size</th>
+                                    <th>Uploaded</th>
+                                </tr>
+                            </thead>
+                            <tbody id="papers-body">
+                                <tr>
+                                    <td colspan="9" style="text-align:center;color:var(--muted2);padding:40px">Loading…
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination">
+                        <div class="page-info" id="papers-page-info">—</div>
+                        <div class="page-btns" id="papers-page-btns"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /content -->
+    </main>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <svg class="toast-icon" id="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"></svg>
+        <span id="toast-msg"></span>
+    </div>
+
+    <script>
+        const SUPA_URL = 'https://foyqblymliwaylpoftdw.supabase.co';
+        const SUPA_KEY = 'sb_publishable_DtgwWKKY0e61Oc7zfTvbQw_pP9mx93k';
+        const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+        // ── State ──────────────────────────────────────────────────────────────────
+        let allUsers = [];
+        let allPapers = [];
+        let uploaderMap = {}; // id → name
+
+        let usersPage = 1; const usersPerPage = 15;
+        let papersPage = 1; const papersPerPage = 15;
+        let paperStatusFilter = 'all';
+        let usersFilterText = '';
+        let papersFilterText = '';
+
+        let uploadsChart = null;
+
+        // ── Toast ──────────────────────────────────────────────────────────────────
+        function showToast(msg, ok = true) {
+            const t = document.getElementById('toast');
+            const ic = document.getElementById('toast-icon');
+            const ms = document.getElementById('toast-msg');
+            ic.className = `toast-icon ${ok ? 'ok' : 'err'}`;
+            ic.innerHTML = ok
+                ? '<polyline points="20 6 9 17 4 12"/>'
+                : '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+            ms.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // ── Section nav ────────────────────────────────────────────────────────────
+        const sectionMeta = {
+            dashboard: { title: 'Dashboard', sub: 'Overview of all PassIt activity' },
+            users: { title: 'Users', sub: 'Everyone who has signed up to PassIt' },
+            papers: { title: 'Papers', sub: 'All uploaded past exam papers' },
+        };
+
+        function showSection(key) {
+            ['dashboard', 'users', 'papers'].forEach(k => {
+                document.getElementById(`section-${k}`).style.display = k === key ? '' : 'none';
+                document.querySelectorAll('.nav-item').forEach((el, i) => {
+                    const map = ['dashboard', 'users', 'papers'];
+                    // match by onclick text
+                    if (el.getAttribute('onclick')?.includes(k === key ? key : '___')) { }
+                });
+            });
+            // Update active nav
+            document.querySelectorAll('.nav-item').forEach(el => {
+                const fn = el.getAttribute('onclick') || '';
+                el.classList.toggle('active', fn.includes(`'${key}'`));
+            });
+            document.getElementById('page-title').textContent = sectionMeta[key].title;
+            document.getElementById('page-sub').textContent = sectionMeta[key].sub;
+        }
+
+        // ── Date helpers ───────────────────────────────────────────────────────────
+        function fmtDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function fmtDateShort(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        }
+
+        function daysAgo(iso) {
+            if (!iso) return '';
+            const diff = Date.now() - new Date(iso).getTime();
+            const d = Math.floor(diff / 86400000);
+            if (d === 0) return 'Today';
+            if (d === 1) return '1 day ago';
+            return `${d} days ago`;
+        }
+
+        // ── Level formatting ───────────────────────────────────────────────────────
+        function levelLabel(lvl) {
+            const map = {
+                university: 'Uni', high_school: 'HS', secondary: 'Sec',
+                competitive: 'Comp', professional: 'Prof'
+            };
+            return map[lvl] || lvl || '—';
+        }
+
+        // ── Load all data ──────────────────────────────────────────────────────────
+        async function loadAll() {
+            const btn = document.getElementById('refresh-btn');
+            btn.classList.add('spinning');
+
+            try {
+                const [usersRes, papersRes] = await Promise.all([
+                    sb.from('profiles').select('*').order('created_at', { ascending: false }),
+                    sb.from('paper_uploads').select('*').order('created_at', { ascending: false }),
+                ]);
+
+                if (usersRes.error) throw usersRes.error;
+                if (papersRes.error) throw papersRes.error;
+
+                allUsers = usersRes.data || [];
+                allPapers = papersRes.data || [];
+
+                // Build uploader map
+                allUsers.forEach(u => { uploaderMap[u.id] = u.full_name || u.email || u.id.slice(0, 8); });
+
+                renderStats();
+                renderRecentUsers();
+                renderUploadsChart();
+                renderLevelBreakdown();
+                renderUsersTable();
+                renderPapersTable();
+
+                showToast('Data refreshed successfully');
+            } catch (e) {
+                console.error(e);
+                showToast(`Error: ${e.message || 'Could not reach Supabase'}`, false);
+            } finally {
+                btn.classList.remove('spinning');
+            }
+        }
+
+        function refreshAll() { loadAll(); }
+
+        // ── Stats ──────────────────────────────────────────────────────────────────
+        function renderStats() {
+            const totalPapers = allPapers.length;
+            const approved = allPapers.filter(p => p.status === 'approved').length;
+            const pending = allPapers.filter(p => p.status === 'pending').length;
+            const totalDownloads = allPapers.reduce((s, p) => s + (p.downloads || 0), 0);
+
+            countUp('s-users', 0, allUsers.length);
+            countUp('s-papers', 0, totalPapers);
+            countUp('s-pending', 0, pending);
+            countUp('s-downloads', 0, totalDownloads);
+
+            document.getElementById('s-users-badge').textContent =
+                allUsers.filter(u => u.user_type === 'admin').length + ' admin(s)';
+            document.getElementById('s-approved-badge').textContent =
+                `${approved} approved`;
+            document.getElementById('s-pending-badge').textContent =
+                pending === 0 ? 'All clear ✓' : `${pending} need review`;
+        }
+
+        function countUp(id, from, to) {
+            const el = document.getElementById(id);
+            const dur = 800;
+            const fps = 60;
+            const steps = Math.round(dur / (1000 / fps));
+            let current = from;
+            const inc = (to - from) / steps;
+            let frame = 0;
+            const timer = setInterval(() => {
+                frame++;
+                current += inc;
+                el.textContent = Math.round(current).toLocaleString();
+                if (frame >= steps) { el.textContent = to.toLocaleString(); clearInterval(timer); }
+            }, 1000 / fps);
+        }
+
+        // ── Recent users ───────────────────────────────────────────────────────────
+        function renderRecentUsers() {
+            const tbody = document.getElementById('recent-users-body');
+            const recent = allUsers.slice(0, 5);
+            if (!recent.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-row">No users yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = recent.map(u => `
+    <tr>
+      <td>
+        <div class="td-name">${u.full_name || '—'}</div>
+      </td>
+      <td class="td-email">${u.email || '—'}</td>
+      <td><span class="pill ${u.user_type === 'admin' ? 'pill-admin' : 'pill-student'}">${u.user_type || 'student'}</span></td>
+      <td class="td-num">${(u.points_balance || 0).toLocaleString()}</td>
+      <td class="td-date">${daysAgo(u.created_at)}</td>
+    </tr>
+  `).join('');
+        }
+
+        // ── Uploads chart ──────────────────────────────────────────────────────────
+        function renderUploadsChart() {
+            // Build last 30 days of upload counts
+            const days = 30;
+            const now = new Date();
+            const labels = [];
+            const counts = {};
+
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                const key = d.toISOString().slice(0, 10);
+                labels.push(fmtDateShort(key + 'T00:00:00'));
+                counts[key] = 0;
+            }
+
+            allPapers.forEach(p => {
+                const key = (p.created_at || '').slice(0, 10);
+                if (key in counts) counts[key]++;
+            });
+
+            const data = Object.values(counts);
+
+            const ctx = document.getElementById('uploads-chart').getContext('2d');
+
+            if (uploadsChart) uploadsChart.destroy();
+
+            const grad = ctx.createLinearGradient(0, 0, 0, 200);
+            grad.addColorStop(0, 'rgba(59,130,246,0.3)');
+            grad.addColorStop(1, 'rgba(59,130,246,0)');
+
+            uploadsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        borderColor: '#3b82f6',
+                        borderWidth: 2,
+                        backgroundColor: grad,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        pointHoverBackgroundColor: '#3b82f6',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                            titleColor: '#94a3b8',
+                            bodyColor: '#f8fafc',
+                            titleFont: { family: 'DM Sans', size: 11 },
+                            bodyFont: { family: 'DM Mono', size: 12, weight: '500' },
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                title: items => items[0].label,
+                                label: item => `${item.raw} upload${item.raw !== 1 ? 's' : ''}`,
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#52525b',
+                                font: { size: 10, family: 'DM Mono' },
+                                maxTicksLimit: 8,
+                                maxRotation: 0,
+                            },
+                            border: { color: 'rgba(255,255,255,0.06)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255,255,255,0.04)' },
+                            ticks: {
+                                color: '#52525b',
+                                font: { size: 10, family: 'DM Mono' },
+                                stepSize: 1,
+                            },
+                            border: { color: 'transparent', dash: [3, 3] }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ── Level breakdown ────────────────────────────────────────────────────────
+        function renderLevelBreakdown() {
+            const levels = ['university', 'high_school', 'secondary', 'competitive', 'professional'];
+            const labels = { university: 'University', high_school: 'High School', secondary: 'Secondary', competitive: 'Competitive', professional: 'Professional' };
+            const colors = { university: '#3b82f6', high_school: '#f59e0b', secondary: '#22c55e', competitive: '#a855f7', professional: '#ec4899' };
+
+            const counts = {};
+            levels.forEach(l => counts[l] = 0);
+            allPapers.forEach(p => { if (p.level in counts) counts[p.level]++; });
+
+            const max = Math.max(...Object.values(counts), 1);
+            const container = document.getElementById('level-breakdown');
+
+            if (allPapers.length === 0) {
+                container.innerHTML = '<div style="color:var(--muted);font-size:12px">No papers yet</div>';
+                return;
+            }
+
+            container.innerHTML = levels.map(l => `
+    <div class="cat-row">
+      <div class="cat-label">${labels[l]}</div>
+      <div class="cat-bar-wrap">
+        <div class="cat-bar" style="width:${(counts[l] / max * 100)}%;background:${colors[l]}"></div>
+      </div>
+      <div class="cat-count">${counts[l]}</div>
+    </div>
+  `).join('');
+        }
+
+        // ── Users table ────────────────────────────────────────────────────────────
+        function filteredUsers() {
+            const q = usersFilterText.toLowerCase();
+            if (!q) return allUsers;
+            return allUsers.filter(u =>
+                (u.full_name || '').toLowerCase().includes(q) ||
+                (u.email || '').toLowerCase().includes(q) ||
+                (u.institution || '').toLowerCase().includes(q)
+            );
+        }
+
+        function filterUsers() {
+            usersFilterText = document.getElementById('user-search').value;
+            usersPage = 1;
+            renderUsersTable();
+        }
+
+        function renderUsersTable() {
+            const data = filteredUsers();
+            const total = data.length;
+            const pages = Math.ceil(total / usersPerPage) || 1;
+            if (usersPage > pages) usersPage = pages;
+
+            const slice = data.slice((usersPage - 1) * usersPerPage, usersPage * usersPerPage);
+            const tbody = document.getElementById('users-body');
+
+            document.getElementById('users-count-label').textContent =
+                `${total} user${total !== 1 ? 's' : ''} total`;
+
+            if (!slice.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No users found</td></tr>';
+            } else {
+                tbody.innerHTML = slice.map((u, i) => {
+                    const rowNum = (usersPage - 1) * usersPerPage + i + 1;
+                    return `
+        <tr>
+          <td class="td-mono" style="color:var(--muted2)">${rowNum}</td>
+          <td class="td-name">${u.full_name || '<span style="color:var(--muted2)">Not set</span>'}</td>
+          <td class="td-email">${u.email || '—'}</td>
+          <td style="color:var(--muted);font-size:12px">${u.institution || '—'}</td>
+          <td><span class="pill ${u.user_type === 'admin' ? 'pill-admin' : 'pill-student'}">${u.user_type || 'student'}</span></td>
+          <td class="td-num">${(u.points_balance || 0).toLocaleString()}</td>
+          <td>${u.is_verified_uploader ? '<span class="pill pill-verified">✓ Verified</span>' : '<span style="color:var(--muted2);font-size:12px">—</span>'}</td>
+          <td class="td-date">${fmtDate(u.created_at)}</td>
+        </tr>`;
+                }).join('');
+            }
+
+            renderPagination('users', total, pages, usersPage, n => { usersPage = n; renderUsersTable(); });
+        }
+
+        // ── Papers table ───────────────────────────────────────────────────────────
+        function filteredPapers() {
+            const q = papersFilterText.toLowerCase();
+            return allPapers.filter(p => {
+                const matchStatus = paperStatusFilter === 'all' || p.status === paperStatusFilter;
+                const matchText = !q ||
+                    (p.file_name || '').toLowerCase().includes(q) ||
+                    (p.institution || '').toLowerCase().includes(q) ||
+                    (p.course || '').toLowerCase().includes(q) ||
+                    (uploaderMap[p.uploader_id] || '').toLowerCase().includes(q);
+                return matchStatus && matchText;
+            });
+        }
+
+        function filterPaperStatus(status, el) {
+            paperStatusFilter = status;
+            papersPage = 1;
+            document.querySelectorAll('#status-tabs .tab').forEach(t => t.classList.remove('active'));
+            if (el) el.classList.add('active');
+            renderPapersTable();
+        }
+
+        function filterPapers() {
+            papersFilterText = document.getElementById('paper-search').value;
+            papersPage = 1;
+            renderPapersTable();
+        }
+
+        function renderPapersTable() {
+            const data = filteredPapers();
+            const total = data.length;
+            const pages = Math.ceil(total / papersPerPage) || 1;
+            if (papersPage > pages) papersPage = pages;
+
+            const slice = data.slice((papersPage - 1) * papersPerPage, papersPage * papersPerPage);
+            const tbody = document.getElementById('papers-body');
+
+            document.getElementById('papers-count-label').textContent =
+                `${total} paper${total !== 1 ? 's' : ''}`;
+
+            if (!slice.length) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-row">No papers found</td></tr>';
+            } else {
+                tbody.innerHTML = slice.map((p, i) => {
+                    const rowNum = (papersPage - 1) * papersPerPage + i + 1;
+                    const uploader = uploaderMap[p.uploader_id] || '—';
+                    const sizeStr = p.file_size_kb ? `${(p.file_size_kb / 1024).toFixed(1)} MB` : '—';
+                    const statusCls = { approved: 'pill-approved', pending: 'pill-pending', rejected: 'pill-rejected' }[p.status] || 'pill-student';
+                    return `
+        <tr>
+          <td class="td-mono" style="color:var(--muted2)">${rowNum}</td>
+          <td>
+            <div style="font-weight:500;font-size:13px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.file_name || ''}">${p.file_name || p.course || '—'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${p.course || ''} · ${p.year || ''}</div>
+          </td>
+          <td style="font-size:12px;color:var(--muted);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.institution || ''}">${p.institution || '—'}</td>
+          <td><span class="level-badge">${levelLabel(p.level)}</span></td>
+          <td><span class="pill ${statusCls}">${p.status || '—'}</span></td>
+          <td style="font-size:12px;color:var(--muted)">${uploader}</td>
+          <td class="td-num">${(p.downloads || 0).toLocaleString()}</td>
+          <td class="td-mono" style="color:var(--muted);font-size:11px">${sizeStr}</td>
+          <td class="td-date">${fmtDate(p.created_at)}</td>
+        </tr>`;
+                }).join('');
+            }
+
+            renderPagination('papers', total, pages, papersPage, n => { papersPage = n; renderPapersTable(); });
+        }
+
+        // ── Pagination ─────────────────────────────────────────────────────────────
+        function renderPagination(key, total, pages, current, onChange) {
+            const perPage = key === 'users' ? usersPerPage : papersPerPage;
+            const from = Math.min((current - 1) * perPage + 1, total);
+            const to = Math.min(current * perPage, total);
+            document.getElementById(`${key}-page-info`).textContent =
+                total ? `Showing ${from}–${to} of ${total}` : 'No results';
+
+            const container = document.getElementById(`${key}-page-btns`);
+            if (pages <= 1) { container.innerHTML = ''; return; }
+
+            let html = `<button class="page-btn" onclick="(${onChange.toString()})(${current - 1})" ${current === 1 ? 'disabled' : ''}><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>`;
+            for (let p = 1; p <= pages; p++) {
+                if (pages > 7 && Math.abs(p - current) > 2 && p !== 1 && p !== pages) {
+                    if (p === current - 3 || p === current + 3) html += `<button class="page-btn" disabled>…</button>`;
+                    continue;
+                }
+                html += `<button class="page-btn ${p === current ? 'active' : ''}" onclick="(${onChange.toString()})(${p})">${p}</button>`;
+            }
+            html += `<button class="page-btn" onclick="(${onChange.toString()})(${current + 1})" ${current === pages ? 'disabled' : ''}><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>`;
+            container.innerHTML = html;
+        }
+
+        // ── Boot ───────────────────────────────────────────────────────────────────
+        loadAll();
+    </script>
+</body>
+
+</html>

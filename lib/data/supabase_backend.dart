@@ -246,22 +246,45 @@ class SupabaseBackend {
     final storagePath =
         '$userId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
-    await _client.storage
-        .from(supabaseStorageBucket)
-        .upload(storagePath, file)
-        .timeout(
-          const Duration(seconds: 60),
-          onTimeout: () => throw TimeoutException(
-            'Upload timed out. Check your internet and bucket policies.',
-          ),
-        );
+    final uploadTimeout = await _storageUploadTimeout(file);
+    Object? lastError;
 
-    return SupabaseUploadResult(
-      storagePath: storagePath,
-      publicUrl: _client.storage
-          .from(supabaseStorageBucket)
-          .getPublicUrl(storagePath),
-    );
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await _client.storage
+            .from(supabaseStorageBucket)
+            .upload(
+              storagePath,
+              file,
+              fileOptions: const FileOptions(upsert: true),
+            )
+            .timeout(
+              uploadTimeout,
+              onTimeout: () {
+                throw TimeoutException(
+                  'Upload timed out after ${uploadTimeout.inMinutes} minutes.',
+                );
+              },
+            );
+
+        return SupabaseUploadResult(
+          storagePath: storagePath,
+          publicUrl: _client.storage
+              .from(supabaseStorageBucket)
+              .getPublicUrl(storagePath),
+        );
+      } catch (error) {
+        lastError = error;
+        if (attempt >= 3 || !_isRetryableUploadError(error)) {
+          rethrow;
+        }
+
+        final delay = Duration(seconds: attempt * attempt * 2);
+        await Future<void>.delayed(delay);
+      }
+    }
+
+    throw Exception('Upload failed: $lastError');
   }
 
   Future<String> syncContribution({required Map<String, dynamic> data}) async {
@@ -520,6 +543,256 @@ class SupabaseBackend {
     } catch (_) {
       return false;
     }
+  }
+
+  // ── Admin users ────────────────────────────────────────────────────────────
+
+  /// Returns users from the profiles table for admin management UI.
+  ///
+  /// Expected profile fields:
+  /// - id
+  /// - full_name
+  /// - user_type
+  /// - points_balance
+  /// - email (optional: if not present, UI falls back to empty)
+  Future<List<Map<String, dynamic>>> fetchAdminUsers() async {
+    if (!_isReady) return const [];
+    try {
+      // Preferred path: SECURITY DEFINER RPC that can join profiles with
+      // auth.users and return email safely for admins.
+      final rpcRows = await _client
+          .rpc('admin_list_users')
+          .timeout(const Duration(seconds: 20));
+      return List<Map<String, dynamic>>.from(rpcRows);
+    } catch (_) {
+      // Fallback path: read directly from profiles only.
+    }
+
+    try {
+      final rows = await _client
+          .from('profiles')
+          .select()
+          .timeout(const Duration(seconds: 20));
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      try {
+        final rows = await _client
+            .from('profiles')
+            .select()
+            .timeout(const Duration(seconds: 35));
+        return List<Map<String, dynamic>>.from(rows);
+      } catch (_) {
+        return const [];
+      }
+    }
+  }
+
+  /// Returns high-level usage statistics for the admin dashboard.
+  ///
+  /// Preferred path: RPC `admin_usage_stats()` returning one row.
+  /// Fallback path: derive totals from `profiles` and `paper_uploads`.
+  Future<Map<String, int>> fetchAdminUsageStats() async {
+    if (!_isReady) return const {};
+
+    try {
+      final rpcRows = await _client
+          .rpc('admin_usage_stats')
+          .timeout(const Duration(seconds: 20));
+      final rows = List<Map<String, dynamic>>.from(rpcRows);
+      if (rows.isNotEmpty) {
+        final row = rows.first;
+        return {
+          'total_users': _toInt(row['total_users']),
+          'total_uploads': _toInt(row['total_uploads']),
+          'approved_uploads': _toInt(row['approved_uploads']),
+          'pending_uploads': _toInt(row['pending_uploads']),
+          'rejected_uploads': _toInt(row['rejected_uploads']),
+          'total_views': _toInt(row['total_views']),
+          'total_downloads': _toInt(row['total_downloads']),
+          'active_uploaders': _toInt(row['active_uploaders']),
+        };
+      }
+    } catch (_) {
+      // Fall through to table-based derivation.
+    }
+
+    try {
+      final profileRows = await _client
+          .from('profiles')
+          .select('id')
+          .timeout(const Duration(seconds: 20));
+
+      final paperRows = await _client
+          .from(supabaseTableName)
+          .select('uploader_id, status, downloads, views')
+          .timeout(const Duration(seconds: 20));
+
+      final users = List<Map<String, dynamic>>.from(profileRows);
+      final papers = List<Map<String, dynamic>>.from(paperRows);
+
+      var approved = 0;
+      var pending = 0;
+      var rejected = 0;
+      var totalViews = 0;
+      var totalDownloads = 0;
+      final activeUploaders = <String>{};
+
+      for (final row in papers) {
+        final status = (row['status'] ?? '').toString().trim().toLowerCase();
+        if (status == 'approved') approved++;
+        if (status == 'pending') pending++;
+        if (status == 'rejected') rejected++;
+
+        totalViews += _toInt(row['views']);
+        totalDownloads += _toInt(row['downloads']);
+
+        final uploaderId = (row['uploader_id'] ?? '').toString().trim();
+        if (uploaderId.isNotEmpty) activeUploaders.add(uploaderId);
+      }
+
+      return {
+        'total_users': users.length,
+        'total_uploads': papers.length,
+        'approved_uploads': approved,
+        'pending_uploads': pending,
+        'rejected_uploads': rejected,
+        'total_views': totalViews,
+        'total_downloads': totalDownloads,
+        'active_uploaders': activeUploaders.length,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Returns a map of uploader_id -> number of uploaded papers.
+  Future<Map<String, int>> fetchUploadCountsByUser() async {
+    if (!_isReady) return const {};
+    try {
+      final rows = await _client
+          .from(supabaseTableName)
+          .select('uploader_id')
+          .timeout(const Duration(seconds: 20));
+
+      final counts = <String, int>{};
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final userId = (row['uploader_id'] ?? '').toString().trim();
+        if (userId.isEmpty) continue;
+        counts[userId] = (counts[userId] ?? 0) + 1;
+      }
+      return counts;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  // ── Admin institutions ───────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchAdminInstitutions() async {
+    if (!_isReady) return const [];
+    try {
+      final rows = await _client
+          .from('institutions')
+          .select('id, name, status, created_at')
+          .order('name')
+          .timeout(const Duration(seconds: 20));
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> addInstitution({required String name}) async {
+    if (!_isReady) throw StateError('Supabase is not initialised.');
+    final clean = name.trim();
+    if (clean.isEmpty) throw ArgumentError('Institution name is required.');
+
+    await _client
+        .from('institutions')
+        .insert({'name': clean})
+        .timeout(const Duration(seconds: 20));
+  }
+
+  Future<void> deleteInstitution({required String institutionId}) async {
+    if (!_isReady) throw StateError('Supabase is not initialised.');
+    final id = institutionId.trim();
+    if (id.isEmpty) return;
+
+    await _client
+        .from('institutions')
+        .delete()
+        .eq('id', id)
+        .timeout(const Duration(seconds: 20));
+  }
+
+  /// Returns stats keyed by institution name.
+  /// Each value contains: papers, contributors.
+  Future<Map<String, Map<String, int>>> fetchInstitutionUsageStats() async {
+    if (!_isReady) return const {};
+    try {
+      final rows = await _client
+          .from(supabaseTableName)
+          .select('institution, uploader_id')
+          .timeout(const Duration(seconds: 20));
+
+      final papersByInstitution = <String, int>{};
+      final contributorsByInstitution = <String, Set<String>>{};
+
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final institution = (row['institution'] ?? '').toString().trim();
+        if (institution.isEmpty) continue;
+        papersByInstitution[institution] =
+            (papersByInstitution[institution] ?? 0) + 1;
+
+        final uploaderId = (row['uploader_id'] ?? '').toString().trim();
+        if (uploaderId.isNotEmpty) {
+          contributorsByInstitution.putIfAbsent(institution, () => <String>{});
+          contributorsByInstitution[institution]!.add(uploaderId);
+        }
+      }
+
+      final stats = <String, Map<String, int>>{};
+      for (final entry in papersByInstitution.entries) {
+        stats[entry.key] = {
+          'papers': entry.value,
+          'contributors': contributorsByInstitution[entry.key]?.length ?? 0,
+        };
+      }
+      return stats;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<Duration> _storageUploadTimeout(File file) async {
+    final sizeBytes = await file.length();
+    final sizeMb = (sizeBytes / (1024 * 1024)).ceil();
+
+    // Larger files need more time on weak mobile connections.
+    final seconds = (90 + (sizeMb * 25)).clamp(90, 420);
+    return Duration(seconds: seconds);
+  }
+
+  bool _isRetryableUploadError(Object error) {
+    final message = error.toString().toLowerCase();
+
+    return error is TimeoutException ||
+        error is SocketException ||
+        message.contains('timeout') ||
+        message.contains('socket') ||
+        message.contains('network') ||
+        message.contains('connection') ||
+        message.contains('temporary') ||
+        message.contains('fetch failed') ||
+        message.contains('503') ||
+        message.contains('502');
+  }
+
+  int _toInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim()) ?? fallback;
+    return fallback;
   }
 }
 

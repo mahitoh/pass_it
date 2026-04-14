@@ -8,9 +8,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:pass_it/main.dart';
-import 'package:pass_it/screens/auth_page.dart';
-import 'package:pass_it/screens/onboarding_page.dart';
+import '../lib/main.dart';
+import '../lib/screens/auth_page.dart';
+import '../lib/screens/onboarding_page.dart';
 
 void main() {
   testWidgets('renders auth gate in signed-out state', (

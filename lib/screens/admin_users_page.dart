@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../data/supabase_backend.dart';
 
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
@@ -8,255 +10,125 @@ class AdminUsersPage extends StatefulWidget {
 }
 
 class _AdminUsersPageState extends State<AdminUsersPage> {
-  final List<Map<String, dynamic>> _mockUsers = [
-    {
-      'id': '1',
-      'full_name': 'Chia Richcal',
-      'email': 'ankiambomrichcal.chia@ictuniversity.edu.cm',
-      'role': 'admin',
-      'points': 1250,
-      'uploads': 12,
-    },
-    {
-      'id': '2',
-      'full_name': 'John Doe',
-      'email': 'john.doe@gmail.com',
-      'role': 'student',
-      'points': 840,
-      'uploads': 5,
-    },
-    {
-      'id': '3',
-      'full_name': 'Sarah Smith',
-      'email': 'sarah@ubuea.cm',
-      'role': 'student',
-      'points': 720,
-      'uploads': 8,
-    },
-    {
-      'id': '4',
-      'full_name': 'Mary Jane',
-      'email': 'mary@unibe.it',
-      'role': 'moderator',
-      'points': 450,
-      'uploads': 3,
-    },
-  ];
-
+  List<Map<String, dynamic>> _users = const [];
+  bool _isLoading = true;
   String _query = '';
-  String _roleFilter = 'all';
 
-  List<Map<String, dynamic>> get _filteredUsers {
-    return _mockUsers.where((u) {
-      final role = (u['role'] ?? '').toString().toLowerCase();
-      final q = _query.trim().toLowerCase();
-      final matchesRole = _roleFilter == 'all' || role == _roleFilter;
-      final matchesQuery =
-          q.isEmpty ||
-          (u['full_name'] ?? '').toString().toLowerCase().contains(q) ||
-          (u['email'] ?? '').toString().toLowerCase().contains(q);
-      return matchesRole && matchesQuery;
-    }).toList();
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
   }
 
-  Future<void> _openSearch() async {
-    final ctrl = TextEditingController(text: _query);
-    final updated = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Search users'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(hintText: 'Name or email'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-    if (updated == null) return;
-    setState(() => _query = updated);
-  }
+  Future<void> _loadUsers() async {
+    setState(() => _isLoading = true);
+    try {
+      final backend = SupabaseBackend.instance;
+      final rows = await backend.fetchAdminUsers();
+      final uploadCounts = await backend.fetchUploadCountsByUser();
+      await backend.fetchAdminUsageStats(); // keep RPC call; result unused
 
-  Future<void> _openFilter() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('All roles'),
-              onTap: () => Navigator.pop(context, 'all'),
-            ),
-            ListTile(
-              title: const Text('Admin'),
-              onTap: () => Navigator.pop(context, 'admin'),
-            ),
-            ListTile(
-              title: const Text('Moderator'),
-              onTap: () => Navigator.pop(context, 'moderator'),
-            ),
-            ListTile(
-              title: const Text('Student'),
-              onTap: () => Navigator.pop(context, 'student'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (selected == null) return;
-    setState(() => _roleFilter = selected);
-  }
 
-  void _handleAction(String action, int index) {
-    if (index < 0 || index >= _filteredUsers.length) return;
-    final target = _filteredUsers[index];
-    final originalIndex = _mockUsers.indexOf(target);
-    if (originalIndex == -1) return;
+      final mapped = rows.map((row) {
+        final id = row['id'].toString();
+        return {
+          'id': id,
+          'name': (row['full_name'] ?? 'Unnamed Entity').toString(),
+          'email': row['email'].toString(),
+          'role': (row['user_type'] ?? 'student').toString(),
+          'points': row['points_balance'] ?? 0,
+          'uploads': uploadCounts[id] ?? 0,
+        };
+      }).toList();
 
-    if (action == 'promote') {
-      setState(() => _mockUsers[originalIndex]['role'] = 'admin');
-      return;
-    }
-    if (action == 'revoke') {
-      setState(() => _mockUsers[originalIndex]['role'] = 'student');
-      return;
-    }
-    if (action == 'block') {
-      setState(() => _mockUsers.removeAt(originalIndex));
-      return;
+      if (mounted) {
+        setState(() {
+          _users = mapped;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _isLoading = false; });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Users'),
-        actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: _openSearch),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _openFilter,
-          ),
-        ],
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: _filteredUsers.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final user = _filteredUsers[index];
-          final String role = user['role'] ?? 'student';
+    final cs = Theme.of(context).colorScheme;
+    final filtered = _users.where((u) => u['name'].toLowerCase().contains(_query.toLowerCase()) || u['email'].toLowerCase().contains(_query.toLowerCase())).toList();
 
-          return Card(
-            margin: EdgeInsets.zero,
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Text(
-                  (user['full_name'] as String).substring(0, 1),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-              title: Text(
-                user['full_name'],
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text(
-                    user['email'],
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _roleColor(role).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: _roleColor(role).withOpacity(0.5),
-                          ),
-                        ),
-                        child: Text(
-                          role.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: _roleColor(role),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '•  ${user['points']} Points',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                      Text(
-                        '•  ${user['uploads']} Uploads',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              trailing: PopupMenuButton<String>(
-                onSelected: (value) => _handleAction(value, index),
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'promote',
-                    child: Text('Make Admin'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'revoke',
-                    child: Text('Revoke Admin'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'block',
-                    child: Text(
-                      'Block User',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
+    return Scaffold(
+      backgroundColor: cs.surface,
+      appBar: AppBar(
+        title: Text('Nexus Directory', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                hintText: 'Search neural signal...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: cs.surfaceContainerLow,
+                contentPadding: EdgeInsets.zero,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: filtered.length,
+            itemBuilder: (context, i) {
+              final user = filtered[i];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: _roleColor(user['role']).withValues(alpha: 0.1),
+                      child: Text(user['name'][0].toUpperCase(), style: TextStyle(color: _roleColor(user['role']), fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(user['name'], style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 15)),
+                          Text(user['email'], style: GoogleFonts.inter(fontSize: 12, color: cs.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('${user['points']} pts', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: cs.primary)),
+                        Text('${user['uploads']} items', style: GoogleFonts.inter(fontSize: 10, color: cs.onSurfaceVariant)),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
     );
   }
 
   Color _roleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'admin':
-        return Colors.deepPurple;
-      case 'moderator':
-        return Color(0xFF003F98);
-      default:
-        return Colors.green;
-    }
+    if (role == 'admin') return Colors.indigo;
+    if (role == 'moderator') return Colors.teal;
+    return Colors.blueGrey;
   }
 }

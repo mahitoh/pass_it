@@ -44,7 +44,7 @@ class LevelPapersPage extends StatelessWidget {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(Icons.description_outlined, color: Theme.of(context).colorScheme.primary),
@@ -84,7 +84,7 @@ class LevelPapersPage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 32, 24, 48),
         decoration: BoxDecoration(
-          color: theme.colorScheme.primary.withOpacity(0.05),
+          color: theme.colorScheme.primary.withValues(alpha: 0.05),
           borderRadius: const BorderRadius.only(
             bottomLeft: Radius.circular(32),
             bottomRight: Radius.circular(32),

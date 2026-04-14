@@ -45,7 +45,7 @@ class NotificationsPage extends StatelessWidget {
                   margin: EdgeInsets.zero,
                   color: isRead 
                     ? Theme.of(context).colorScheme.surfaceContainerLow
-                    : Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
+                    : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: CircleAvatar(

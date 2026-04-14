@@ -4,10 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/app_state.dart';
 import 'explore_page.dart';
-import 'home_page.dart';
 import 'leaderboard_page.dart';
 import 'notifications_page.dart';
-import 'onboarding_page.dart';
 import 'paper_scanner_page.dart';
 import 'points_page.dart';
 import 'profile_page.dart';
@@ -59,10 +57,10 @@ class _HomePageState extends State<HomePage> {
       body: _currentIndex == 0 ? OfflineBanner(child: page) : page,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: cs.surface.withOpacity(0.96),
+          color: cs.surface.withValues(alpha: 0.96),
           boxShadow: [
             BoxShadow(
-              color: cs.onSurface.withOpacity(0.04),
+              color: cs.onSurface.withValues(alpha: 0.04),
               blurRadius: 16,
               offset: const Offset(0, -4),
             ),
@@ -106,7 +104,7 @@ class _HomePageState extends State<HomePage> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: cs.primary.withOpacity(0.3),
+                              color: cs.primary.withValues(alpha: 0.3),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -277,7 +275,7 @@ class _AppBar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return SliverAppBar(
       pinned: true,
-      backgroundColor: cs.surface.withOpacity(0.95),
+      backgroundColor: cs.surface.withValues(alpha: 0.95),
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
         icon: Icon(Icons.menu_rounded, color: cs.onSurface, size: 28),
@@ -434,7 +432,7 @@ class _SearchBar extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -572,7 +570,7 @@ class _CategoryCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: data.color.withOpacity(0.15),
+                  color: data.color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(data.icon, color: data.color, size: 20),
@@ -592,7 +590,7 @@ class _CategoryCard extends StatelessWidget {
                     'Browse papers',
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: data.color.withOpacity(0.65),
+                      color: data.color.withValues(alpha: 0.65),
                     ),
                   ),
                 ],
@@ -657,7 +655,7 @@ class _TrendingStrip extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: cs.primary.withOpacity(0.1),
+                          color: cs.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -673,7 +671,7 @@ class _TrendingStrip extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: cs.secondaryContainer.withOpacity(0.3),
+                          color: cs.secondaryContainer.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -762,7 +760,7 @@ class _UploadBanner extends StatelessWidget {
                   'Upload a paper and earn 50 pts instantly',
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],
@@ -842,7 +840,7 @@ class _PaperListTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -850,7 +848,7 @@ class _PaperListTile extends StatelessWidget {
               width: 44,
               height: 50,
               decoration: BoxDecoration(
-                color: cs.primary.withOpacity(0.08),
+                color: cs.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -957,7 +955,7 @@ class _LevelBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: _color.withOpacity(0.1),
+        color: _color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
@@ -1022,16 +1020,17 @@ class _TwitterLikeDrawer extends StatelessWidget {
 
     if (!shouldLogout) return;
 
+    // Clear local state immediately for responsiveness
+    AppState.instance.clearForSignedOut();
+    Navigator.pop(context);
+
+    // Try to sign out in background, don't block UI
     try {
-      await Supabase.instance.client.auth.signOut();
-      if (!context.mounted) return;
-      AppState.instance.clearForSignedOut();
-      Navigator.pop(context);
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not log out. Please try again.')),
+      await Supabase.instance.client.auth.signOut().timeout(
+        const Duration(seconds: 3),
       );
+    } catch (_) {
+      // Network error - local sign out already done, ignore
     }
   }
 
@@ -1174,7 +1173,7 @@ class _TwitterLikeDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Divider(
                   height: 1,
-                  color: cs.outlineVariant.withOpacity(0.2),
+                  color: cs.outlineVariant.withValues(alpha: 0.2),
                 ),
               ),
               const SizedBox(height: 4),

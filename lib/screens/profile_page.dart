@@ -122,7 +122,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                           (isAdmin
                                                   ? const Color(0xFFD4A017)
                                                   : cs.primary)
-                                              .withOpacity(0.1),
+                                              .withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(20),
                                       border: AppTheme.ghostBorder(
                                         opacity: 0.1,
@@ -417,7 +417,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Divider(
                     height: 1,
                     indent: 56,
-                    color: cs.outlineVariant.withOpacity(0.2),
+                    color: cs.outlineVariant.withValues(alpha: 0.2),
                   ),
                   _SettingsToggle(
                     icon: Icons.dark_mode_rounded,
@@ -431,7 +431,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Divider(
                     height: 1,
                     indent: 56,
-                    color: cs.outlineVariant.withOpacity(0.2),
+                    color: cs.outlineVariant.withValues(alpha: 0.2),
                   ),
                   _SettingsToggle(
                     icon: Icons.brightness_auto_rounded,
@@ -515,7 +515,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: _statusColor(p.status).withOpacity(0.1),
+                          color: _statusColor(p.status).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
@@ -661,16 +661,14 @@ class _ProfilePageState extends State<ProfilePage> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              // Clear local state immediately for responsiveness
+              AppState.instance.clearForSignedOut();
+              // Try to sign out in background, don't block UI
               try {
-                await Supabase.instance.client.auth.signOut();
+                await Supabase.instance.client.auth.signOut()
+                  .timeout(const Duration(seconds: 3));
               } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not sign out. Try again.'),
-                    ),
-                  );
-                }
+                // Network error - local sign out already done, ignore
               }
             },
             child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
@@ -721,7 +719,7 @@ class _StatDivider extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: 1,
     height: 32,
-    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
+    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
   );
 }
 
@@ -769,7 +767,7 @@ class _BookmarksList extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -795,7 +793,7 @@ class _BookmarksList extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: bookmarked.asMap().entries.map((e) {
@@ -813,7 +811,7 @@ class _BookmarksList extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.08),
+                    color: cs.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -856,7 +854,7 @@ class _BookmarksList extends StatelessWidget {
               if (!isLast)
                 Divider(
                   height: 1,
-                  color: cs.outlineVariant.withOpacity(0.15),
+                  color: cs.outlineVariant.withValues(alpha: 0.15),
                   indent: 16,
                   endIndent: 16,
                 ),
@@ -907,7 +905,7 @@ class _ActionTile extends StatelessWidget {
             Icons.chevron_right_rounded,
             size: 18,
             color: isDestructive
-                ? cs.error.withOpacity(0.5)
+                ? cs.error.withValues(alpha: 0.5)
                 : cs.outlineVariant,
           ),
           onTap: onTap,
@@ -915,7 +913,7 @@ class _ActionTile extends StatelessWidget {
         if (showDivider)
           Divider(
             height: 1,
-            color: cs.outlineVariant.withOpacity(0.15),
+            color: cs.outlineVariant.withValues(alpha: 0.15),
             indent: 54,
             endIndent: 16,
           ),

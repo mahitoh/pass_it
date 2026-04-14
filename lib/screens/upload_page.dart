@@ -1076,6 +1076,8 @@ class _FileAndReviewStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasFile = selectedFile != null;
+    final normalizedProgress = uploadProgress.clamp(0.0, 1.0).toDouble();
+    final progressPercent = (normalizedProgress * 100).round();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -1302,17 +1304,39 @@ class _FileAndReviewStep extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: uploadProgress,
+                value: normalizedProgress,
                 minHeight: 6,
                 backgroundColor: cs.surfaceContainerHigh,
                 valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
               ),
             ),
             const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    uploadStage,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$progressPercent%',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: cs.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Text(
-              uploadStage,
+              '$progressPercent% uploaded',
               style: GoogleFonts.inter(
-                fontSize: 12,
+                fontSize: 11,
                 color: cs.onSurfaceVariant,
               ),
             ),
